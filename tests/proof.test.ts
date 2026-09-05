@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { appendFile, cp, mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
+import { appendFile, cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { test } from 'node:test';
@@ -33,6 +33,18 @@ test('proof verification rejects a changed sanitized transcript', async () => {
     await cp(resolve(process.cwd(), 'proof', 'mission-002'), resolve(root, 'proof', 'mission-002'), { recursive: true });
     await appendFile(resolve(root, 'proof', 'mission-002', 'transcript.sanitized.txt'), '\nchanged\n', 'utf8');
     await assert.rejects(verifyProofIntegrity(root), /integrity mismatch/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('proof verification rejects unmanifested files', async () => {
+  const root = await mkdtemp(resolve(tmpdir(), 'partline-proof-fileset-'));
+  try {
+    await mkdir(resolve(root, 'proof'), { recursive: true });
+    await cp(resolve(process.cwd(), 'proof', 'mission-002'), resolve(root, 'proof', 'mission-002'), { recursive: true });
+    await writeFile(resolve(root, 'proof', 'mission-002', 'unexpected.txt'), 'not part of the bundle', 'utf8');
+    await assert.rejects(verifyProofIntegrity(root), /directory file set invalid/);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

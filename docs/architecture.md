@@ -1,79 +1,107 @@
-# Architecture and invariants
+# PARTLINE architecture and safety invariants
+
+PARTLINE turns time-sensitive supplier conversations into a conservative, inspectable decision brief. It has two deliberately separate data paths: a deterministic simulation for broad behavior and one sanitized, versioned proof bundle from a consenting CALL-E role-play. Neither dashboard path can initiate a call or transaction.
 
 ```mermaid
 flowchart LR
-    A[Typed repair request + supplied suppliers] --> B[Human inquiry approval]
-    B --> C[Bounded job workers]
+    A[Typed urgent request] --> B[Inquiry authorization]
+    B --> C[Bounded concurrent workers]
     C --> D{CallAdapter}
     D --> M[Deterministic mock]
-    D --> L[Disabled-by-default CALL-E CLI adapter]
-    M --> E[Transcript + schema validation]
+    D --> L[Disabled CALL-E CLI transport]
+    M --> E[Transcript normalization]
     L --> E
-    E --> F[Evidence ledger + comparison]
-    F --> G{Missing or conflicting answers?}
-    G -->|Viable supplier + approved budget| C
-    G -->|Finished or bounded limit| H[Human decision brief]
-    C --> S[Atomic JSON checkpoints]
-    E --> S
+    E --> F[Evidence ledger]
+    F --> G[Gap and conflict detection]
+    G -->|within policy| C
+    G -->|complete or bounded| H[Normalized comparison]
+    H --> I[Non-executable human brief]
+    C --> S[Atomic checkpoints]
     F --> S
-    H --> I[Manual choice only]
 ```
 
-## Domain
+## Domain model
 
-`Job` carries the exact request, manufacturer/model, requested quantity, currency, absolute deadline, fulfillment, timezone, named targets, opaque contact references and inquiry policy. Phone numbers are resolved ephemerally by the live adapter and cannot pass the artifact schema. No phone numbers, language, currency or location are inferred. `Question` is a typed field and a bounded prompt. All eight core fields must exist and be required.
+`Job` fixes the exact manufacturer/model, requested quantity, currency, absolute deadline, IANA timezone, fulfillment method, targets, required questions, and call limits. Phone destinations never enter this model: targets contain opaque contact references, while a live adapter resolves an authorized destination only in process memory.
 
-`Call` identifies one target and one round. `runId` preserves the opaque provider ID; all accepted claims link to the local call which holds that ID. Each `Evidence` entry has its field, typed value, exact quote, character span, observation timestamp, source type, and explicit supersession links. The result schema is application-owned; it is not falsely advertised as an MCP parameter.
+Each `Call` belongs to one target and one round. Each `Evidence` item retains a typed value, the exact supporting quote, source span, observation time, source class, and supersession links. `Artifact` stores the job, mode, calls, evidence, comparison, ordered events, review audit, and optional human choice. The Markdown brief and dashboard are projections of that record rather than independent conclusions.
 
-`Artifact` version 1 contains job, mode, evaluation time, calls, evidence, comparison, ordered events, review audit and human choice. Export its JSON Schema with `npm start -- schema`. A future dashboard can render supplier tracks and answer cells from this record without changing the orchestration engine. The Markdown brief is a projection, not a separate source of truth.
+The comparison engine treats absence as unknown, never as zero or false. Exact model, quantity, availability, ready time, and fulfillment are hard qualification constraints. Only tax-inclusive totals in the requested currency are ranked. A cheaper wrong model cannot outrank a qualifying offer.
 
-## Adapter boundary
+## Adapter and CALL-E boundary
 
-`start(CallRequest)` returns a stable run identity. `poll(runId)` returns active or a validated terminal result. The mock implements the same boundary. Tests use a fake CLI runner beneath the real adapter, so argument/envelope behavior is exercised without phone access.
+`CallAdapter.start(request)` returns an opaque stable run identity; `poll(runId)` returns a validated active or terminal result. The deterministic adapter implements the same interface. Adapter tests place a fake runner below the CALL-E adapter, exercising argument and response handling without reaching a phone service.
 
-CALL-E's CLI executes plan_call then run_call with its exact private confirmation values. PARTLINE never passes confirmation values in process arguments or logs. The CLI owns the OAuth cache and any private call-recovery records outside the workspace. No vendor tool or returned command is directly invoked from data.
+The real transport is disabled by default. When separately and explicitly enabled, the installed CALL-E CLI performs the vendor `plan_call` then `run_call` sequence for one authorized start; status monitoring maps to `get_call_run`. Private confirmation material remains inside the CLI and is never placed in command arguments, logs, project artifacts, or frontend data. The runner uses an absolute executable path, argument arrays, `shell:false`, a filtered environment, and redacted errors.
 
-The live runner invokes Node with an absolute `calle.js` path using argument arrays and `shell:false`. It only permits status/start calls after explicit enablement. Mission 002 enables it only in the fixed `live-test` command after the approval marker, one-target policy and destination fingerprint all validate. It filters inherited environment variables so endpoint/token overrides and Node injection do not pass through. Its stderr and native exception details are suppressed.
+Mission 004 does not import, initialize, or invoke this adapter. Both dashboard servers are GET-only. The portable package contains JavaScript data, not an execution endpoint.
 
-## Reliability
-
-State transitions:
+## Orchestration, retries, and crash recovery
 
 ```text
-queued → dispatching [checkpoint before start]
-       → active [checkpoint stable run ID] → completed / failed
-                                         → monitoring_paused → active on resume
-dispatching after crash → uncertain → operator review
-budget/deadline denial → blocked
+queued → dispatching [intent checkpoint]
+       → active [stable run ID checkpoint] → completed / failed
+                                        ↘ monitoring_paused → poll saved ID
+dispatching without acknowledgement after crash → uncertain → operator review
+policy or deadline denial → blocked
 ```
 
-Only confirmed pre-execution failures retry a start, with bounded exponential backoff. A missing acknowledgment, malformed response or native start exception is uncertain. An unknown vendor status remains active. All documented terminal states stop polling, including NO ANSWER normalization. A completed conversation does not prove that inventory meets requirements.
+- A concurrency semaphore limits active logical supplier work.
+- A max-call budget counts initial contacts and follow-up rounds.
+- Only a confirmed pre-start failure can retry, with bounded exponential backoff.
+- Missing acknowledgement, malformed start output, or an ambiguous native exception becomes `uncertain`; PARTLINE will not redial it.
+- Poll exhaustion preserves the run identity and pauses monitoring. Resume polls that identity instead of starting again.
+- Declined, no-answer, busy, voicemail, and terminal failures do not cause automatic redials.
+- Follow-up questions are allowed only for viable suppliers, unresolved required fields, and remaining policy budget.
+- A process lock prevents two local workers from operating the same job. Checkpoints are written through temporary files and atomic rename.
 
-The application waits 60 seconds before its first subsequent live poll, then at least ten seconds between reads. The installed CLI itself performs a best-effort initial status read during start. Local poll exhaustion preserves the run ID and pauses monitoring; it cannot cancel the external call. Restarts poll saved IDs instead of starting new calls.
+The deterministic judge scenario runs two workers with a six-call logical budget and at most one follow-up per supplier. Its timeline uses recorded event sequence numbers, not fabricated wall-clock call duration.
 
-The max-call budget conservatively reserves an attempt slot for each logical contact, including uncertain starts. Confirmed failed planning retries reuse that slot because no phone call started. Follow-ups consume new slots. The budget limits PARTLINE submissions; whether the upstream service can autonomously redial internally must be verified in the consented experiment. The goal explicitly requests one attempt and no scheduling.
+## Transcript ingestion and provenance
 
-Concurrency is per job. A file lock prevents two processes from operating one job. It is not a cross-job/provider-wide rate limiter. Parallel worker snapshots are serialized before atomic rename. A dispatch intent surviving a crash is treated as uncertain; this intentionally chooses manual recovery over the possibility of duplicate calls. A crash may leave a lock or temporary file. Inspect the process/provider status before manual cleanup; the application does not auto-steal locks.
+Transcript text is untrusted input. The real-format parser recognizes timestamped `BOT`/`USER` lines, joins consecutive BOT lines into a single question, and permits only recipient `USER` speech to support supplier claims. Invalid spans, quote mismatches, secret-bearing content, unsupported types, and ungrounded fields are rejected.
 
-## Evidence and comparison
+Fresh, explicit, non-conflicting claims produce supported cells. Tentative, absent, stale, or conflicting claims remain unresolved. A correction retains the earlier evidence and must explicitly supersede it. Relative readiness stays an instant bound; it is not converted into an invented exact time. Coverage is completeness across eight required fields, not probability, truth, or inventory certification.
 
-The transcript is treated as untrusted text. Invalid spans, mismatched quotes, unsupported value types and secret-bearing content are rejected. Text is sanitized before output; a redacted transcript from a raw result invalidates its old claim offsets. The live parser operates on sanitized text and accepts only explicit supplier-labeled values. No general LLM extractor or speaker diarization is claimed.
+## Reproducible judge data paths
 
-Fresh, explicit, nonconflicting values become supported cells. Tentative, absent, stale and conflicting facts remain unresolved. Repeated identical claims do not inflate coverage. A correction must identify prior evidence of the same field and target and contain explicit correction wording. Old evidence stays in the ledger. Human review can annotate unsupported speech, with reviewer audit; it does not change observation freshness.
+```text
+tracked proof/mission-002 + deterministic MockAdapter
+                    │
+            schema + hash + provenance validation
+                    │
+          ┌─────────┴─────────┐
+          │                   │
+  source dashboard       judge:build
+  in-memory model         embedded data.js
+  GET-only loopback       static GET-only package
+```
 
-Hard constraints check availability, exact model, quantity, absolute deadline and fulfillment. Only matching-currency, tax-inclusive total prices rank together; there is no implicit exchange-rate conversion. Nonempty supplier constraints require human review. Supported options rank first, followed by incomplete and disqualified ones; price orders within a class. The report calls coverage a completeness fraction and reports categorical uncertainty, not a calibrated probability.
+The source dashboard does not read `.runs`, provider caches, OAuth state, environment credentials, or phone data. It regenerates the deterministic scenario in memory and loads only the tracked proof bundle. `judge:build` first performs the same strict load, then emits relative frontend assets, an embedded sanitized view model, deterministic build metadata, and a verified copy of the proof bundle under `dist/judge/`.
 
-## Human boundaries
+The static package can be opened directly or served locally. It has no network dependency, backend mutation route, live adapter, or authentication requirement.
 
-Inquiry approval and purchasing choice are separate. The call grant binds an immutable job fingerprint, destination fingerprints, mode, expiry and budget. Mission 002's approval marker is set only by the local wrapper used after explicit chat approval. A JSON flag from an untrusted client must never serve as authority. The current local API assumes a trusted process and operator; multi-user authentication/authorization is not implemented.
+## Sanitized proof and integrity
 
-Human choice is revalidated against current evidence and deadline and sets `executable:false`. There is no purchase/commit executor, payment integration or implicit booking path. Supplier statements and result hints cannot create approval. Any imported evidence clears the prior choice.
+`proof/mission-002/validation.json` is an allowlisted projection of the one completed consenting role-play: one start attempt, zero redials, seven recipient-supported fields, one same-call warranty clarification, and no purchase or reservation. `constraints` remains unknown. The transcript contains only dialogue needed to inspect those claims; direct contact and provider-private identifiers are omitted.
 
-## Boundaries for the next build
+`integrity.json` hashes the three tracked proof files with SHA-256 after documented CRLF-to-LF normalization, then hashes the ordered filename/digest list. Loading checks the exact manifest file set, each digest, the bundle digest, strict schemas, phone/secret rejection, and exact quote-to-line provenance.
 
-- Persist source observation time from actual provider call timestamps once live format is verified; current evidence uses the persisted call start time conservatively, so delayed retrieval cannot refresh old stock claims.
-- Replace the narrow transcript parser with an evaluated extractor and speaker-aware evidence validation after collecting consented samples. Require correction provenance and protect against agent utterances being mistaken for supplier evidence.
-- Add cancellation/control UI and a global contact/concurrency budget before multiple simultaneous live jobs.
-- Add an authenticated dashboard, private transcript storage with retention/deletion controls and encrypted storage where required. Current local JSON is not encrypted.
-- Add business-hours checks and explicit per-supplier willingness/opt-out records before any broader pilot.
-- Validate every call instruction and disclosure in practice. Prompt-based restrictions reduce risk but do not mathematically guarantee a third-party voice model's behavior.
+This is artifact-integrity evidence only: it detects changes to the sanitized bundle. It is not a digital signature, provider attestation, proof of consent, proof of speaker identity, or independent verification that a supplier claim was true.
+
+## Human decision boundary
+
+Inquiry authorization and purchase authority are different capabilities. The live grant, when used outside this mission, binds an immutable job fingerprint, destination fingerprints, mode, expiry, purpose, and budget. It cannot confer transaction authority.
+
+The output recommendation is always `executable:false`. There is no transaction adapter, order API, reservation API, payment path, appointment path, or mutation endpoint. A human choice is revalidated against current model, quantity, readiness, fulfillment, currency, and evidence freshness. Imported evidence clears any previous selection.
+
+## Trust boundaries and residual limits
+
+- Supplier speech is evidence of what was said, not independent stock certification.
+- The real sample is one consenting role-play, not a real supplier and not a multi-call production pilot.
+- Hashes establish sanitized artifact consistency, not historical authenticity.
+- The prototype assumes a trusted local operator; hosted multi-user authentication is not implemented.
+- Private transcript retention, deletion, encryption, and supplier opt-out controls are future production requirements.
+- The parser is intentionally narrow and English-specific; broader language support needs consented evaluation data.
+- Cross-job/provider-wide throttling is not implemented.
+- Third-party voice behavior is constrained by instructions and application boundaries, not mathematically guaranteed.

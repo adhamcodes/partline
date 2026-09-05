@@ -17,6 +17,8 @@ No screen or server endpoint can call, order, reserve, purchase, pay, or make an
 
 Requires Node.js 24 or later and npm. CALL-E, credentials, phone numbers, and ignored runtime artifacts are **not required**.
 
+The npm scripts use a repository-local `tsx` launcher. On Windows it supplies only the numeric process value `tsx` needs for its temporary cache name, avoiding a host-specific `os.userInfo` startup failure without reading or persisting user identity data.
+
 ```sh
 npm ci --ignore-scripts
 npm run proof:verify
@@ -114,12 +116,27 @@ Focused commands:
 ```sh
 npm run typecheck
 npm test
+npm run test:dashboard
+npm run test:proof
 npm run security
 npm run proof:verify
 npm run judge:build
 ```
 
 Tests cover schemas, provenance, conservative parsing, comparison constraints, bounded retries, no-redial recovery, concurrency, idempotent replay, approval binding, the CALL-E CLI argument boundary with fake runners, proof tamper detection, clean-checkout dashboard loading, and the static read-only build.
+
+## Exact clean-clone judge commands
+
+```sh
+git clone <repository-url> partline
+cd partline
+npm ci --ignore-scripts
+npm run proof:verify
+npm run check
+npm run judge
+```
+
+Then open `http://127.0.0.1:4173` and follow [the exact 90-second walkthrough](docs/judge-walkthrough.md). `npm run judge` rebuilds and serves only the offline read-only package. To exercise the source dashboard instead, stop that server and run `npm run dashboard`.
 
 ## Repository map
 

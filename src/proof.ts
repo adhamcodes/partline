@@ -1,11 +1,12 @@
 import { createHash } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { z } from 'zod';
 import { Field, Value } from './domain.js';
 import { assertNoSecrets } from './safety.js';
 
 const proofFiles = ['README.md', 'transcript.sanitized.txt', 'validation.json'] as const;
+const directoryFiles = [...proofFiles, 'integrity.json'].sort();
 
 const ProofEvidence = z.object({
   id: z.string().regex(/^[a-z0-9-]{1,80}$/),
@@ -61,6 +62,13 @@ export const proofDirectory = (root = process.cwd()): string => resolve(root, 'p
 
 export async function verifyProofIntegrity(root = process.cwd()): Promise<IntegrityManifest> {
   const directory = proofDirectory(root);
+  const actualFiles = (await readdir(directory, { withFileTypes: true }))
+    .filter(entry => entry.isFile())
+    .map(entry => entry.name)
+    .sort();
+  if (actualFiles.length !== directoryFiles.length || actualFiles.some((file, index) => file !== directoryFiles[index])) {
+    throw new Error('Proof bundle directory file set invalid');
+  }
   const manifest = IntegrityManifest.parse(JSON.parse(await readFile(resolve(directory, 'integrity.json'), 'utf8')));
   const paths = manifest.files.map(file => file.path);
   if (new Set(paths).size !== proofFiles.length || proofFiles.some(path => !paths.includes(path))) throw new Error('Proof integrity manifest file set invalid');

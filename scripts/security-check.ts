@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { readFile, readdir } from 'node:fs/promises';
 import { join, relative } from 'node:path';
 import { Artifact } from '../src/domain.js';
+import { loadSanitizedProof } from '../src/proof.js';
 import { assertNoSecrets } from '../src/safety.js';
 
 const root = process.cwd();
@@ -22,6 +23,7 @@ for (const file of files) {
   patterns.forEach((pattern, i) => { if (pattern.test(contents)) findings.push(`${file}: pattern-${i + 1}`); });
 }
 let artifactCount = 0;
+let proofBundlesScanned = 0;
 try {
   for (const file of await readdir(join(root, '.runs'))) if (file.endsWith('.json')) {
     const path = join(root, '.runs', file);
@@ -29,6 +31,8 @@ try {
     catch { findings.push(`${relative(root, path)}: artifact-validation`); }
   }
 } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
+try { await loadSanitizedProof(root); proofBundlesScanned = 1; }
+catch { findings.push('proof/mission-002: proof-validation'); }
 // Findings never contain the matching value or line content.
 if (findings.length) { console.error(JSON.stringify({ result: 'FAIL', findings })); process.exitCode = 1; }
-else console.log(JSON.stringify({ result: 'PASS', sourceFilesScanned: files.length, artifactsScanned: artifactCount, note: 'Pattern scan plus strict artifact validation; not a proof against every possible secret.' }));
+else console.log(JSON.stringify({ result: 'PASS', sourceFilesScanned: files.length, artifactsScanned: artifactCount, proofBundlesScanned, note: 'Pattern scan plus strict artifact and proof validation; not a proof against every possible secret.' }));
