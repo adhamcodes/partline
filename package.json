@@ -1,0 +1,18 @@
+{
+  "name": "partline",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Evidence-backed urgent replacement-part sourcing through CALL-E",
+  "engines": { "node": ">=24" },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test tests/*.test.ts",
+    "demo": "tsx src/cli.ts demo",
+    "start": "tsx src/cli.ts",
+    "security": "tsx scripts/security-check.ts",
+    "check": "npm run typecheck && npm test && npm run security"
+  },
+  "dependencies": { "zod": "4.1.5" },
+  "devDependencies": { "@types/node": "24.3.1", "tsx": "4.20.5", "typescript": "5.9.2" }
+}

@@ -1,0 +1,15 @@
+node_modules/
+dist/
+coverage/
+.runs/
+.test-runs/
+.env
+.env.*
+!.env.example
+*.log
+*.pem
+*.key
+token.json
+pending_login.json
+.calle-mcp/
+*.tmp
