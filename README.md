@@ -93,7 +93,7 @@ npm run proof:verify
 
 The real adapter maps one authorized start to official `calle call start`, whose vendor CLI performs `plan_call` then `run_call`. Status polling maps to `get_call_run`. Application tests inject fake runners and never reach the CLI.
 
-The live transport and adapter both default to disabled. The separate `live:test` workflow additionally requires an exact approval marker, a one-target grant bound to the ephemeral destination fingerprint, an expiry, and a one-call budget. The phone number is accepted only through a private local prompt and is not part of `Job`, stored artifacts, this proof bundle, or frontend data.
+The live transport and adapter both default to disabled. The separate `live:test` workflow additionally requires an exact approval marker, a one-target grant bound to the ephemeral destination fingerprint, an expiry, and a one-call budget. The phone number is accepted only through a local environment variable held only in process memory and is not part of `Job`, stored artifacts, this proof bundle, or frontend data.
 
 **Do not run `npm run live:test` for judging.** Mission 004 performs no CALL-E planning or execution. The preserved versioned proof metadata records the single historical validation; it cannot initiate another call.
 
@@ -128,7 +128,7 @@ Tests cover schemas, provenance, conservative parsing, comparison constraints, b
 ## Exact clean-clone judge commands
 
 ```sh
-git clone <repository-url> partline
+git clone https://github.com/adhamcodes/partline.git partline
 cd partline
 npm ci --ignore-scripts
 npm run proof:verify
