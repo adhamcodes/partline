@@ -18,6 +18,14 @@ npm run demo
 npm run security
 ```
 
+Start the read-only judge console after the deterministic and Mission 002 artifacts exist:
+
+```sh
+npm run dashboard
+```
+
+Open `http://127.0.0.1:4173`. The console has no call, order, reservation, payment, or mutation endpoint. It presents the deterministic four-supplier comparison beside the sanitized one-call CALL-E proof.
+
 The demo saves `.runs/partline-demo.json` and `.runs/partline-demo.md`. Open the Markdown brief or run:
 
 ```sh
@@ -59,7 +67,13 @@ The real phone number is never part of `Job`, `Artifact`, the Markdown brief or 
 
 Eight required questions cover physical stock, exact model, quantity, total including tax and currency, absolute ready time, fulfillment, warranty, and constraints. The application validates both schemas and exact quote spans. Unknown values are not assigned zero prices or manufactured confidence scores. Coverage is the fraction of required fields supported, not probability of truth. Supported currencies are USD, BDT, SGD, EUR, GBP, AUD and CAD, all using two fractional digits; other currencies are rejected until explicit unit handling is implemented.
 
-MCP currently has no custom result-schema input. The live adapter therefore uses a deliberately narrow transcript parser: explicit `Supplier: Exact model: ...` and equivalent labeled statements only. It will not extract general natural speech, resolve pronouns, infer tax or timezones, or assume the vendor uses these speaker labels. Unsupported live formats produce missing fields. Do not present the fixture extractor as validated live NLP.
+MCP currently has no custom result-schema input. The parser supports both deterministic `Supplier: Field: value` fixtures and the verified timestamped CALL-E `BOT`/`USER` dialogue format. Consecutive BOT lines are normalized into one question turn; recipient answers are accepted only when they explicitly support that question. Every accepted claim retains its exact transcript range and speaker/timestamp text. Relative readiness such as “before 16:00” is stored as a bound rather than fabricated into an exact stock-ready timestamp. Unsupported or ambiguous speech remains unknown.
+
+The Mission 002 transcript can be replayed locally without loading a call adapter:
+
+```sh
+npm start -- reprocess-transcript mission002-live
+```
 
 An operator can annotate a real completed transcript with the `EvidenceReview` schema in `src/review.ts` and import it with:
 
@@ -87,12 +101,13 @@ The application never reads OAuth caches, inherits CALL-E endpoint overrides, or
 - `src/evidence.ts`, `comparison.ts`, `review.ts`: provenance, normalization, uncertainty, human evidence review.
 - `src/adapters/`: domain adapter and installed CALL-E CLI boundary.
 - `src/store.ts`, `decision.ts`, `report.ts`, `cli.ts`: persistence, human choice, brief and local interface.
+- `src/dashboard/`, `dashboard/`: typed judge view model, read-only server, and responsive operational console.
 - `src/demo.ts`: explicitly fictional deterministic adapter and scenario.
 - `src/live-validation.ts`: the fixed Mission 002 one-call job and destination-bound grant.
 - `tests/`: domain, evidence, orchestration, transport, persistence and approval tests.
 - `docs/product.md`: concept selection and judge narrative.
-- `docs/architecture.md`: invariants, recovery and future dashboard contract.
+- `docs/architecture.md`: invariants, recovery and dashboard contract.
 - `docs/research.md`: official sources and submission obligations.
 - `docs/live-experiment.md`: the next proposed test; not authorization to call.
 
-This is a tested production foundation, not a deployed product or a completed hackathon submission. Live voice quality, natural-language extraction, operating-region behavior, account credits, real supplier value, retention policy and multi-user access controls remain to be validated or built.
+This is a tested local judge product, not a hosted multi-user procurement system. Live supplier value beyond the consenting role-play, broader language coverage, retention policy, access controls, and deployment hardening remain future work.

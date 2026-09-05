@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>PARTLINE · Emergency sourcing console</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="wordmark" href="#top" aria-label="PARTLINE home"><span class="mark">P</span><span>PARTLINE</span></a>
+    <div class="topbar-center"><span class="eyebrow">Emergency sourcing console</span><span class="system-dot">System ready · read only</span></div>
+    <div class="proof-chip"><span class="pulse"></span><strong>1</strong> real CALL-E validation</div>
+  </header>
+
+  <main id="top">
+    <section class="incident" aria-labelledby="incident-title">
+      <div class="incident-flag"><span>INC–024</span><strong>LINE DOWN</strong></div>
+      <div class="incident-copy">
+        <p class="eyebrow">Urgent exact-part request</p>
+        <h1 id="incident-title">Workshop compressor offline</h1>
+        <p id="incident-request" class="incident-request">Loading verified sourcing brief…</p>
+      </div>
+      <dl class="requirements" aria-label="Request constraints">
+        <div><dt>Exact model</dt><dd id="model">—</dd></div>
+        <div><dt>Quantity</dt><dd id="quantity">—</dd></div>
+        <div><dt>Need by</dt><dd id="deadline">—</dd></div>
+        <div><dt>Fulfillment</dt><dd id="fulfillment">—</dd></div>
+      </dl>
+    </section>
+
+    <section class="flowline" aria-label="PARTLINE operating sequence">
+      <div><span>01</span><strong>Scope locked</strong><small>Exact part + deadline</small></div><i>→</i>
+      <div><span>02</span><strong>Phone as API</strong><small>Concurrent supplier calls</small></div><i>→</i>
+      <div><span>03</span><strong>Claims normalized</strong><small>Transcript-backed fields</small></div><i>→</i>
+      <div><span>04</span><strong>Human decides</strong><small>No autonomous commitment</small></div>
+    </section>
+
+    <section class="workspace">
+      <div class="operations panel">
+        <div class="section-head">
+          <div><p class="eyebrow">Deterministic multi-supplier run</p><h2>Call operations</h2></div>
+          <div class="section-actions"><span class="simulation-label">SIMULATION · ZERO CALLS</span><button id="replay" class="secondary" type="button">Replay 6-second run</button></div>
+        </div>
+
+        <div class="replay-strip" aria-live="polite">
+          <div class="replay-index"><span id="replay-count">06 / 06</span><b></b></div>
+          <div><strong id="replay-stage-title">Decision brief ready</strong><p id="replay-stage-detail">Evidence compared. Human decision remains pending.</p></div>
+        </div>
+
+        <div class="lane-board" id="supplier-lanes" aria-label="Supplier call lanes"></div>
+
+        <div class="table-head"><h3>Normalized comparison</h3><span id="comparison-summary">Loading…</span></div>
+        <div class="comparison-wrap">
+          <table>
+            <thead><tr><th>Supplier</th><th>Call</th><th>Model</th><th>Total</th><th>Ready</th><th>Evidence</th><th>Assessment</th><th></th></tr></thead>
+            <tbody id="supplier-table"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <aside class="recommendation panel" aria-labelledby="recommendation-title">
+        <p class="eyebrow">Traceable recommendation</p>
+        <div class="recommendation-status"><span>QUALIFIES</span><small>Evidence-backed</small></div>
+        <h2 id="recommendation-title">—</h2>
+        <div class="recommendation-price" id="recommendation-price">—</div>
+        <p id="recommendation-savings" class="muted">—</p>
+        <div class="rule"></div>
+        <ol id="recommendation-basis" class="basis"></ol>
+        <div class="decision-gate">
+          <span class="lock" aria-hidden="true">◆</span>
+          <div><strong>Decision pending</strong><p>PARTLINE can recommend. Only the operator can act.</p></div>
+        </div>
+      </aside>
+    </section>
+
+    <section class="real-proof" aria-labelledby="proof-title">
+      <div class="proof-lead">
+        <p class="eyebrow">Real-call proof case</p>
+        <div class="proof-title-row"><h2 id="proof-title">Beacon Supply role-play</h2><span class="verified">VERIFIED EXECUTION</span></div>
+        <p>One consenting CALL-E call proved the live path. The number and provider payload are not present in this console.</p>
+        <dl class="proof-stats">
+          <div><dt>CALL-E status</dt><dd id="proof-status">—</dd></div>
+          <div><dt>Outbound calls</dt><dd id="proof-calls">—</dd></div>
+          <div><dt>Evidence coverage</dt><dd id="proof-coverage">—</dd></div>
+          <div><dt>Clarification</dt><dd id="proof-clarification">—</dd></div>
+        </dl>
+      </div>
+      <div class="proof-fields">
+        <div class="proof-fields-head"><div><p class="eyebrow">Recovered from recipient speech</p><h3>7 supported · 1 unknown</h3></div><button id="real-evidence" class="secondary light" type="button">Inspect real evidence</button></div>
+        <div id="real-fields" class="field-grid"></div>
+        <p class="unknown-note"><span>!</span><strong>Constraints remain unknown.</strong> PARTLINE does not fill gaps for a cleaner score.</p>
+      </div>
+    </section>
+
+    <section class="safety-boundary" aria-label="Human safety boundary">
+      <div><p class="eyebrow">Hard system boundary</p><h2>NO ORDER · NO RESERVATION · HUMAN APPROVAL REQUIRED</h2></div>
+      <p id="safety-decision">Recommendation only.</p>
+      <span class="non-executable">EXECUTION DISABLED</span>
+    </section>
+  </main>
+
+  <footer><span>PARTLINE / evidence-backed urgent sourcing</span><span>Phone calls reveal inventory the web cannot.</span></footer>
+
+  <dialog id="evidence-dialog" aria-labelledby="evidence-title">
+    <div class="dialog-head"><div><p class="eyebrow">Transcript provenance</p><h2 id="evidence-title">Evidence</h2></div><button id="close-dialog" class="icon-button" aria-label="Close evidence">×</button></div>
+    <p id="evidence-summary" class="dialog-summary"></p>
+    <div id="evidence-list" class="evidence-list"></div>
+    <div class="dialog-foot">Supplier speech is evidence, not independent inventory certification.</div>
+  </dialog>
+
+  <div id="fatal-error" class="fatal-error" hidden>Dashboard data could not be loaded. No operational action was attempted.</div>
+  <script src="/app.js" defer></script>
+</body>
+</html>

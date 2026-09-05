@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit",
     "test": "tsx --test tests/*.test.ts",
     "demo": "tsx src/cli.ts demo",
+    "dashboard": "tsx src/dashboard/server.ts",
     "live:test": "tsx src/cli.ts live-test",
     "start": "tsx src/cli.ts",
     "security": "tsx scripts/security-check.ts",
