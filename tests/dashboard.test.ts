@@ -9,7 +9,7 @@ import { reprocessTranscripts } from '../src/reprocess.js';
 import { simulationGrant } from '../src/safety.js';
 import { MemoryRunStore } from '../src/store.js';
 import { createDashboardServer } from '../src/dashboard/server.js';
-import { buildDashboardModel } from '../src/dashboard/view.js';
+import { buildDashboardModel, formatOperationalInstant } from '../src/dashboard/view.js';
 
 const transcript = readFileSync(new URL('fixtures/calle-timestamped-transcript.txt', import.meta.url), 'utf8').trimEnd();
 
@@ -31,6 +31,8 @@ test('judge model makes comparison, real proof and safety boundary explicit', as
   assert.equal(model.operations.supplierCount, 4);
   assert.equal(model.operations.recommendation?.targetId, 'beacon');
   assert.equal(model.operations.recommendation?.total, 'USD 205.00');
+  assert.equal(model.operations.recommendation?.savings, 'USD 43.00 cheaper than Atlas Parts');
+  assert.deepEqual(model.operations.recommendation?.rejectedAlternative, { name: 'Delta Depot', total: 'USD 80.00', reason: 'Wrong model · rejected' });
   assert.equal(model.operations.suppliers.find(item => item.id === 'delta')?.outcome, 'does_not_meet');
   assert.equal(model.operations.suppliers.find(item => item.id === 'cedar')?.coverage, 0);
   assert.equal(model.operations.suppliers.find(item => item.id === 'beacon')?.clarification, 'completed');
@@ -42,6 +44,15 @@ test('judge model makes comparison, real proof and safety boundary explicit', as
   assert.equal(model.realProof.evidence.length, 7);
   assert.equal(model.safety.executable, false);
   assert.equal(model.operations.replay.length, 6);
+  assert.equal(model.incident.timezone, 'UTC');
+  assert.equal(model.incident.deadlineLabel, '05 Sept · 16:00 UTC');
+  assert.equal(model.realProof.timezone, 'Asia/Dhaka');
+  assert.equal(model.realProof.deadlineLabel, '05 Sept · 16:00 Asia/Dhaka (UTC+06:00)');
+  const atlas = model.operations.timeline.lanes.find(lane => lane.targetId === 'atlas')?.segments[0];
+  const beacon = model.operations.timeline.lanes.find(lane => lane.targetId === 'beacon')?.segments[0];
+  assert.ok(atlas && beacon);
+  assert.ok(atlas.start < beacon.end && beacon.start < atlas.end, 'Atlas and Beacon recorded execution windows must overlap');
+  assert.equal(model.operations.timeline.lanes.find(lane => lane.targetId === 'beacon')?.segments[1]?.label, 'clarification');
   const serialized = JSON.stringify(model);
   assert.doesNotMatch(serialized, /contactRef|runId|to_phone|phone_number/i);
 });
@@ -63,7 +74,7 @@ test('read-only dashboard server exposes the UI and sanitized model', async () =
     const response = await fetch(`${base}/api/dashboard`);
     assert.equal(response.status, 200);
     const json = await response.text();
-    assert.match(json, /Verified CALL-E execution/);
+    assert.match(json, /REAL CALL-E VALIDATION/);
     assert.doesNotMatch(json, /contactRef|runId|to_phone|phone_number/i);
     const rejected = await fetch(`${base}/api/dashboard`, { method: 'POST' });
     assert.equal(rejected.status, 405);
@@ -77,6 +88,18 @@ test('browser surface contains inspection and replay controls only', () => {
   const script = readFileSync(new URL('../dashboard/app.js', import.meta.url), 'utf8');
   assert.match(html, /Replay 6-second run/);
   assert.match(html, /Inspect real evidence/);
+  assert.match(html, /PARTLINE calls suppliers in parallel, converts their speech into traceable evidence/);
+  assert.match(html, /REAL CALL-E VALIDATION/);
+  assert.match(html, /SIMULATION · ZERO CALLS/);
+  assert.match(html, /Purchase \/ reservation<\/dt><dd>NONE/);
   assert.doesNotMatch(`${html}\n${script}`, /run_call|call start|live-test|place order|reserve now|purchase now/i);
   assert.doesNotMatch(script, /method:\s*['"]POST['"]/);
+});
+
+test('timezone labels never reinterpret live Asia/Dhaka time as UTC', () => {
+  assert.equal(formatOperationalInstant('2026-09-05T16:00:00Z', 'UTC'), '05 Sept · 16:00 UTC');
+  const live = formatOperationalInstant('2026-09-05T16:00:00+06:00', 'Asia/Dhaka');
+  assert.equal(live, '05 Sept · 16:00 Asia/Dhaka (UTC+06:00)');
+  assert.doesNotMatch(live, /16:00 UTC$/);
+  assert.equal(formatOperationalInstant('2026-09-05T14:30:00Z', 'UTC'), '05 Sept · 14:30 UTC');
 });

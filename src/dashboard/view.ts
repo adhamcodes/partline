@@ -30,15 +30,27 @@ export type SupplierView = {
 
 export type DashboardModel = {
   generatedFrom: 'local_artifacts';
-  incident: { title: string; request: string; model: string; quantity: number; deadline: string; fulfillment: string; state: string };
+  incident: { title: string; request: string; model: string; quantity: number; deadline: string; deadlineLabel: string; timezone: string; fulfillment: string; state: string };
   operations: {
     simulated: true;
     supplierCount: number;
     maxConcurrency: number;
     callRecords: number;
     suppliers: SupplierView[];
-    recommendation: { targetId: string; name: string; total: string; savings: string; basis: string[] } | null;
+    recommendation: {
+      targetId: string;
+      name: string;
+      total: string;
+      savings: string;
+      basis: string[];
+      rejectedAlternative: { name: string; total: string; reason: string } | null;
+    } | null;
     replay: Array<{ id: string; label: string; detail: string; targets: string[] }>;
+    timeline: {
+      maxSequence: number;
+      ticks: number[];
+      lanes: Array<{ targetId: string; name: string; segments: Array<{ round: number; start: number; end: number; label: string; outcome: string }> }>;
+    };
   };
   realProof: {
     label: string;
@@ -48,6 +60,9 @@ export type DashboardModel = {
     startAttempts: number;
     coverage: number;
     sameCallClarification: boolean;
+    deadline: string;
+    deadlineLabel: string;
+    timezone: string;
     unknownFields: Field[];
     fields: SupplierView['fields'];
     evidence: EvidenceView[];
@@ -60,20 +75,33 @@ const labels: Record<Field, string> = {
   ready_at: 'Ready by', fulfillment: 'Fulfillment', warranty: 'Warranty / returns', constraints: 'Constraints',
 };
 
-function valueText(value?: Value): string {
+export function formatOperationalInstant(value: string, timezone: string): string {
+  const instant = new Date(value);
+  if (Number.isNaN(instant.valueOf())) return value;
+  const formatter = new Intl.DateTimeFormat('en-GB', {
+    timeZone: timezone, day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit',
+    hourCycle: 'h23', timeZoneName: 'longOffset',
+  });
+  const parts = Object.fromEntries(formatter.formatToParts(instant).map(part => [part.type, part.value]));
+  const offset = (parts.timeZoneName ?? 'GMT').replace('GMT', 'UTC');
+  const zone = timezone === 'UTC' ? 'UTC' : `${timezone} (${offset})`;
+  return `${parts.day} ${parts.month} · ${parts.hour}:${parts.minute} ${zone}`;
+}
+
+function valueText(value: Value | undefined, timezone: string): string {
   if (!value) return 'Unknown';
   if (value.kind === 'boolean') return value.value ? 'Confirmed' : 'No';
   if (value.kind === 'money') return `${value.currency} ${(value.minor / 100).toFixed(2)} incl. tax`;
-  if (value.kind === 'instant') return value.value;
-  if (value.kind === 'instant_bound') return `Before ${value.latest}`;
+  if (value.kind === 'instant') return formatOperationalInstant(value.value, timezone);
+  if (value.kind === 'instant_bound') return `Before ${formatOperationalInstant(value.latest, timezone)}`;
   return String(value.value);
 }
 
-function evidenceView(evidence: Evidence): EvidenceView {
+function evidenceView(evidence: Evidence, timezone: string): EvidenceView {
   return {
     id: evidence.id,
     field: evidence.field,
-    value: valueText(evidence.value),
+    value: valueText(evidence.value, timezone),
     quote: evidence.quote,
     source: evidence.source,
     observedAt: evidence.observedAt,
@@ -97,13 +125,13 @@ function supplierView(artifact: Artifact, row: Comparison): SupplierView {
     coverage: Math.round(row.coverage * 100),
     compatibility,
     total: row.totalMinor === undefined ? 'Unknown' : `${artifact.job.currency} ${(row.totalMinor / 100).toFixed(2)}`,
-    ready: row.readyAt ?? (row.readyBy ? `Before ${row.readyBy}` : 'Unknown'),
+    ready: row.readyAt ? formatOperationalInstant(row.readyAt, artifact.job.timezone) : row.readyBy ? `Before ${formatOperationalInstant(row.readyBy, artifact.job.timezone)}` : 'Unknown',
     callState: terminal?.terminal ?? terminal?.state ?? 'unknown',
     attempts: calls.reduce((sum, call) => sum + call.attempts, 0),
     clarification: calls.some(call => call.round > 0) ? 'completed' : terminal?.state === 'failed' ? 'unavailable' : 'not_needed',
     reasons: row.reasons,
-    fields: row.cells.map(cell => ({ field: cell.field, label: labels[cell.field], state: cell.state, value: valueText(cell.value), evidenceIds: cell.evidenceIds })),
-    evidence: evidence.map(evidenceView),
+    fields: row.cells.map(cell => ({ field: cell.field, label: labels[cell.field], state: cell.state, value: valueText(cell.value, artifact.job.timezone), evidenceIds: cell.evidenceIds })),
+    evidence: evidence.map(item => evidenceView(item, artifact.job.timezone)),
   };
 }
 
@@ -111,16 +139,41 @@ function preferred(suppliers: SupplierView[]): DashboardModel['operations']['rec
   const eligible = suppliers.filter(supplier => supplier.outcome === 'meets_requirements' && supplier.total !== 'Unknown');
   const first = eligible[0];
   if (!first) return null;
-  const totals = eligible.map(supplier => Number(supplier.total.match(/[\d.]+/)?.[0])).filter(Number.isFinite);
   const price = Number(first.total.match(/[\d.]+/)?.[0]);
-  const next = totals.filter(total => total > price).sort((a, b) => a - b)[0];
+  const next = eligible
+    .map(supplier => ({ supplier, price: Number(supplier.total.match(/[\d.]+/)?.[0]) }))
+    .filter(item => Number.isFinite(item.price) && item.price > price)
+    .sort((a, b) => a.price - b.price)[0];
+  const rejected = suppliers.find(supplier => supplier.outcome === 'does_not_meet' && supplier.total !== 'Unknown');
   return {
     targetId: first.id,
     name: first.name,
     total: first.total,
-    savings: next === undefined ? 'No comparable alternative' : `${first.total.slice(0, 3)} ${(next - price).toFixed(2)} below next valid option`,
-    basis: ['Exact model confirmed', 'Required quantity confirmed', 'Pickup before deadline', 'Lowest supported total among qualifying suppliers'],
+    savings: next === undefined ? 'No comparable alternative' : `${first.total.slice(0, 3)} ${(next.price - price).toFixed(2)} cheaper than ${next.supplier.name.replace(' (fictional)', '')}`,
+    basis: ['Exact model · ACME MX-240', 'Quantity satisfied · 2 units', 'Pickup confirmed before 16:00 UTC', 'Lowest supported total among qualifying suppliers'],
+    rejectedAlternative: rejected ? { name: rejected.name.replace(' (fictional)', ''), total: rejected.total, reason: rejected.compatibility === 'mismatch' ? 'Wrong model · rejected' : 'Does not meet requirements' } : null,
   };
+}
+
+function executionTimeline(artifact: Artifact): DashboardModel['operations']['timeline'] {
+  const maxSequence = Math.max(1, ...artifact.events.map(event => event.sequence));
+  const lanes = artifact.job.targets.map(target => {
+    const calls = artifact.calls.filter(call => call.targetId === target.id);
+    return {
+      targetId: target.id,
+      name: target.name.replace(' (fictional)', ''),
+      segments: calls.flatMap(call => {
+        const events = artifact.events.filter(event => event.callId === call.id);
+        const start = events.find(event => event.type === 'dispatch_intent_saved')?.sequence;
+        const end = events.findLast(event => event.type === 'call_terminal')?.sequence;
+        if (start === undefined || end === undefined || end < start) return [];
+        return [{ round: call.round, start, end, label: call.round > 0 ? 'clarification' : 'initial call', outcome: call.terminal ?? call.state }];
+      }),
+    };
+  });
+  const ticks = [1, Math.ceil(maxSequence * .25), Math.ceil(maxSequence * .5), Math.ceil(maxSequence * .75), maxSequence]
+    .filter((value, index, all) => all.indexOf(value) === index);
+  return { maxSequence, ticks, lanes };
 }
 
 function liveProof(live: Artifact): DashboardModel['realProof'] {
@@ -130,13 +183,16 @@ function liveProof(live: Artifact): DashboardModel['realProof'] {
   const call = live.calls[0];
   if (!call) throw new Error('Live proof call absent');
   return {
-    label: 'Verified CALL-E execution · consenting role-play',
+    label: 'REAL CALL-E VALIDATION · CONSENTING ROLE-PLAY',
     roleplay: true,
     status: call.terminal ?? call.state,
     callCount: live.calls.length,
     startAttempts: live.calls.reduce((sum, item) => sum + item.attempts, 0),
     coverage: supplier.coverage,
     sameCallClarification: supplier.evidence.some(item => item.field === 'warranty' && /just to confirm/i.test(item.quote)),
+    deadline: live.job.deadline,
+    deadlineLabel: formatOperationalInstant(live.job.deadline, live.job.timezone),
+    timezone: live.job.timezone,
     unknownFields: supplier.fields.filter(field => field.state !== 'supported').map(field => field.field),
     fields: supplier.fields,
     evidence: supplier.evidence,
@@ -150,7 +206,8 @@ export function buildDashboardModel(live: Artifact, demo: Artifact): DashboardMo
     generatedFrom: 'local_artifacts',
     incident: {
       title: 'Workshop compressor offline', request: demo.job.request, model: demo.job.exactModel,
-      quantity: demo.job.quantity, deadline: demo.job.deadline, fulfillment: demo.job.requiredFulfillment, state: demo.state,
+      quantity: demo.job.quantity, deadline: demo.job.deadline, deadlineLabel: formatOperationalInstant(demo.job.deadline, demo.job.timezone),
+      timezone: demo.job.timezone, fulfillment: demo.job.requiredFulfillment, state: demo.state,
     },
     operations: {
       simulated: true,
@@ -159,6 +216,7 @@ export function buildDashboardModel(live: Artifact, demo: Artifact): DashboardMo
       callRecords: demo.calls.length,
       suppliers,
       recommendation: preferred(suppliers),
+      timeline: executionTimeline(demo),
       replay: [
         { id: 'scope', label: 'Request locked', detail: 'Exact model, quantity, deadline and no-commit policy fixed.', targets: [] },
         { id: 'parallel', label: 'Parallel outreach', detail: 'Atlas and Beacon start together; the queue continues within the two-call concurrency limit.', targets: ['atlas', 'beacon'] },

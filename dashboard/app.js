@@ -1,4 +1,7 @@
 window.__consoleErrors = [];
+window.__consoleWarnings = [];
+const nativeWarn = console.warn.bind(console);
+console.warn = (...items) => { window.__consoleWarnings.push(items.map(String).join(' ')); nativeWarn(...items); };
 window.addEventListener('error', event => window.__consoleErrors.push(String(event.message || 'window error')));
 window.addEventListener('unhandledrejection', event => window.__consoleErrors.push(String(event.reason || 'unhandled rejection')));
 
@@ -8,12 +11,6 @@ const create = (tag, className, text) => {
   if (className) element.className = className;
   if (text !== undefined) element.textContent = text;
   return element;
-};
-const shortTime = value => {
-  if (!value || value === 'Unknown') return 'Unknown';
-  const parsed = new Date(value.replace(/^Before /, ''));
-  if (Number.isNaN(parsed.valueOf())) return value;
-  return `${value.startsWith('Before ') ? 'Before ' : ''}${new Intl.DateTimeFormat('en', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'UTC' }).format(parsed)} UTC`;
 };
 const outcomeText = value => ({ meets_requirements: 'Qualifies', needs_verification: 'Verify', does_not_meet: 'Rejected' }[value] || value);
 
@@ -71,7 +68,7 @@ function renderTable(suppliers) {
     const call = create('td'); call.append(create('span', `status-tag ${supplier.callState === 'COMPLETED' ? 'exact' : 'unknown'}`, supplier.callState.replace('_', ' ')));
     const compatibility = create('td'); compatibility.append(create('span', `status-tag ${supplier.compatibility}`, supplier.compatibility === 'exact' ? 'Exact match' : supplier.compatibility));
     const total = create('td', '', supplier.total);
-    const ready = create('td', '', shortTime(supplier.ready));
+    const ready = create('td', '', supplier.ready);
     const coverageCell = create('td'); const coverage = create('div', 'coverage'); const bar = create('b'); const fill = create('i'); fill.style.width = `${supplier.coverage}%`; bar.append(fill); coverage.append(bar, create('span', '', `${supplier.coverage}%`)); coverageCell.append(coverage);
     const result = create('td'); result.append(create('span', `status-tag ${supplier.outcome}`, outcomeText(supplier.outcome)));
     const action = create('td'); const inspect = create('button', 'evidence-button', supplier.evidence.length ? 'Inspect evidence' : 'Inspect gap'); inspect.type = 'button'; inspect.addEventListener('click', () => openEvidence(supplier.name, supplier.evidence, `${supplier.coverage}% evidence coverage · ${supplier.reasons.join(' · ') || 'all required fields supported'}`)); action.append(inspect);
@@ -79,11 +76,42 @@ function renderTable(suppliers) {
   });
 }
 
+function renderTimeline(timeline) {
+  const root = $('#timeline'); root.replaceChildren();
+  const axisLabel = create('div', 'timeline-label timeline-axis-label', 'SUPPLIER');
+  const axis = create('div', 'timeline-track timeline-axis');
+  timeline.ticks.forEach(sequence => {
+    const tick = create('span', 'timeline-tick', `E${String(sequence).padStart(2, '0')}`);
+    tick.style.left = `${((sequence - 1) / Math.max(1, timeline.maxSequence - 1)) * 100}%`;
+    axis.append(tick);
+  });
+  root.append(axisLabel, axis);
+  timeline.lanes.forEach(lane => {
+    root.append(create('div', 'timeline-label', lane.name));
+    const track = create('div', 'timeline-track');
+    lane.segments.forEach(segment => {
+      const bar = create('span', `timeline-segment ${segment.round > 0 ? 'clarification' : ''}`.trim(), segment.round > 0 ? 'CLARIFY' : 'CALL');
+      const denominator = Math.max(1, timeline.maxSequence - 1);
+      bar.style.left = `${((segment.start - 1) / denominator) * 100}%`;
+      bar.style.width = `${Math.max(2.5, ((segment.end - segment.start) / denominator) * 100)}%`;
+      bar.title = `${lane.name} · ${segment.label} · E${String(segment.start).padStart(2, '0')}–E${String(segment.end).padStart(2, '0')} · ${segment.outcome}`;
+      bar.setAttribute('aria-label', bar.title);
+      track.append(bar);
+    });
+    root.append(track);
+  });
+}
+
 function renderRealProof(proof) {
+  $('#summary-calls').textContent = String(proof.callCount);
+  $('#summary-redials').textContent = proof.startAttempts === proof.callCount ? 'ZERO' : String(Math.max(0, proof.startAttempts - proof.callCount));
+  $('#summary-fields').textContent = `${proof.fields.filter(item => item.state === 'supported').length} / ${proof.fields.length}`;
+  $('#summary-clarification').textContent = proof.sameCallClarification ? 'SAME CALL' : 'NOT EVIDENCED';
   $('#proof-status').textContent = proof.status;
   $('#proof-calls').textContent = `${proof.callCount} · no redial`;
   $('#proof-coverage').textContent = `${proof.coverage}% · 7/8`;
   $('#proof-clarification').textContent = proof.sameCallClarification ? 'Warranty · same call' : 'Not evidenced';
+  $('#proof-deadline').textContent = proof.deadlineLabel;
   const grid = $('#real-fields'); grid.replaceChildren();
   proof.fields.forEach(item => {
     const field = create('div', `field ${item.state === 'supported' ? '' : 'unknown'}`.trim());
@@ -124,9 +152,10 @@ function render(data) {
   $('#incident-request').textContent = data.incident.request;
   $('#model').textContent = data.incident.model;
   $('#quantity').textContent = `${data.incident.quantity} units`;
-  $('#deadline').textContent = shortTime(data.incident.deadline);
+  $('#deadline').textContent = data.incident.deadlineLabel;
   $('#fulfillment').textContent = data.incident.fulfillment;
   $('#comparison-summary').textContent = `${data.operations.supplierCount} suppliers · ${data.operations.maxConcurrency} concurrent · ${data.operations.callRecords} call records`;
+  renderTimeline(data.operations.timeline);
   renderLanes(data.operations.suppliers);
   renderTable(data.operations.suppliers);
   const recommendation = data.operations.recommendation;
@@ -135,6 +164,14 @@ function render(data) {
     $('#recommendation-price').textContent = recommendation.total;
     $('#recommendation-savings').textContent = recommendation.savings;
     recommendation.basis.forEach(item => $('#recommendation-basis').append(create('li', '', item)));
+    if (recommendation.rejectedAlternative) {
+      const rejected = recommendation.rejectedAlternative;
+      $('#rejected-alternative').append(
+        create('span', '', 'CHEAPEST IS NOT QUALIFYING'),
+        create('strong', '', `${rejected.name} · ${rejected.total}`),
+        create('small', '', rejected.reason),
+      );
+    }
   }
   renderRealProof(data.realProof);
   $('#safety-decision').textContent = data.safety.decision;
