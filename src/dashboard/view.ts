@@ -1,5 +1,6 @@
-import type { Artifact, Call, Cell, Comparison, Evidence, Field, Value } from '../domain.js';
+import { Field, type Artifact, type Cell, type Comparison, type Evidence, type Value } from '../domain.js';
 import { canonical } from '../evidence.js';
+import type { SanitizedProof } from '../proof.js';
 import { assertNoSecrets } from '../safety.js';
 
 export type EvidenceView = {
@@ -7,9 +8,9 @@ export type EvidenceView = {
   field: Field;
   value: string;
   quote: string;
-  source: Evidence['source'];
-  observedAt: string;
-  range: string;
+  source: Evidence['source'] | 'sanitized_real_transcript';
+  sourceRef: string;
+  timestamp: string;
 };
 
 export type SupplierView = {
@@ -29,7 +30,7 @@ export type SupplierView = {
 };
 
 export type DashboardModel = {
-  generatedFrom: 'local_artifacts';
+  generatedFrom: 'versioned_sanitized_proof';
   incident: { title: string; request: string; model: string; quantity: number; deadline: string; deadlineLabel: string; timezone: string; fulfillment: string; state: string };
   operations: {
     simulated: true;
@@ -104,8 +105,8 @@ function evidenceView(evidence: Evidence, timezone: string): EvidenceView {
     value: valueText(evidence.value, timezone),
     quote: evidence.quote,
     source: evidence.source,
-    observedAt: evidence.observedAt,
-    range: `${evidence.start}:${evidence.end}`,
+    sourceRef: `chars ${evidence.start}:${evidence.end}`,
+    timestamp: evidence.observedAt,
   };
 }
 
@@ -176,34 +177,48 @@ function executionTimeline(artifact: Artifact): DashboardModel['operations']['ti
   return { maxSequence, ticks, lanes };
 }
 
-function liveProof(live: Artifact): DashboardModel['realProof'] {
-  const row = live.comparison[0];
-  if (!row) throw new Error('Live proof comparison absent');
-  const supplier = supplierView(live, row);
-  const call = live.calls[0];
-  if (!call) throw new Error('Live proof call absent');
+function liveProof(proof: SanitizedProof): DashboardModel['realProof'] {
+  const byField = new Map(proof.evidence.map(item => [item.field, item]));
+  const fields = Field.options.map(field => {
+    const evidence = byField.get(field);
+    return {
+      field,
+      label: labels[field],
+      state: evidence ? 'supported' as const : 'unknown' as const,
+      value: evidence ? valueText(evidence.value, proof.request.timezone) : 'Unknown',
+      evidenceIds: evidence ? [evidence.id] : [],
+    };
+  });
   return {
     label: 'REAL CALL-E VALIDATION · CONSENTING ROLE-PLAY',
     roleplay: true,
-    status: call.terminal ?? call.state,
-    callCount: live.calls.length,
-    startAttempts: live.calls.reduce((sum, item) => sum + item.attempts, 0),
-    coverage: supplier.coverage,
-    sameCallClarification: supplier.evidence.some(item => item.field === 'warranty' && /just to confirm/i.test(item.quote)),
-    deadline: live.job.deadline,
-    deadlineLabel: formatOperationalInstant(live.job.deadline, live.job.timezone),
-    timezone: live.job.timezone,
-    unknownFields: supplier.fields.filter(field => field.state !== 'supported').map(field => field.field),
-    fields: supplier.fields,
-    evidence: supplier.evidence,
+    status: proof.status,
+    callCount: proof.callCount,
+    startAttempts: proof.startAttempts,
+    coverage: Math.round((proof.coverage.supported / proof.coverage.required) * 100),
+    sameCallClarification: proof.sameCallClarification.completed,
+    deadline: proof.request.deadline,
+    deadlineLabel: formatOperationalInstant(proof.request.deadline, proof.request.timezone),
+    timezone: proof.request.timezone,
+    unknownFields: [...proof.coverage.unknown],
+    fields,
+    evidence: proof.evidence.map(item => ({
+      id: item.id,
+      field: item.field,
+      value: valueText(item.value, proof.request.timezone),
+      quote: item.quote,
+      source: 'sanitized_real_transcript',
+      sourceRef: item.sourceRef,
+      timestamp: item.timestamp,
+    })),
   };
 }
 
-export function buildDashboardModel(live: Artifact, demo: Artifact): DashboardModel {
-  if (live.mode !== 'live' || demo.mode !== 'mock') throw new Error('Dashboard artifact modes invalid');
+export function buildDashboardModel(proof: SanitizedProof, demo: Artifact): DashboardModel {
+  if (demo.mode !== 'mock') throw new Error('Dashboard artifact mode invalid');
   const suppliers = demo.comparison.map(row => supplierView(demo, row));
   const model: DashboardModel = {
-    generatedFrom: 'local_artifacts',
+    generatedFrom: 'versioned_sanitized_proof',
     incident: {
       title: 'Workshop compressor offline', request: demo.job.request, model: demo.job.exactModel,
       quantity: demo.job.quantity, deadline: demo.job.deadline, deadlineLabel: formatOperationalInstant(demo.job.deadline, demo.job.timezone),
@@ -226,7 +241,7 @@ export function buildDashboardModel(live: Artifact, demo: Artifact): DashboardMo
         { id: 'compare', label: 'Decision brief ready', detail: 'Beacon qualifies at USD 205; Delta is rejected for model mismatch; the operator decides.', targets: ['beacon', 'delta'] },
       ],
     },
-    realProof: liveProof(live),
+    realProof: liveProof(proof),
     safety: {
       decision: 'Recommendation only. No order or reservation can be executed from this surface.',
       executable: false,
@@ -235,8 +250,4 @@ export function buildDashboardModel(live: Artifact, demo: Artifact): DashboardMo
   };
   assertNoSecrets(model);
   return model;
-}
-
-export function callCountProof(live: Artifact): { records: number; attempts: number } {
-  return { records: live.calls.length, attempts: live.calls.reduce((sum: number, call: Call) => sum + call.attempts, 0) };
 }

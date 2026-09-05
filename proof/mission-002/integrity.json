@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "algorithm": "sha256",
+  "canonicalization": "utf8-crlf-to-lf",
+  "files": [
+    { "path": "README.md", "sha256": "cde1a261a73f8d8ad1d062682cadd16210078a178bfad49d45d2c773dda48639" },
+    { "path": "transcript.sanitized.txt", "sha256": "33044ede70a4a75587fa5baf34e162d8e4395bbbc75052be0a2d1b595cd0975f" },
+    { "path": "validation.json", "sha256": "59d84193b7b903cad2570f017c51cbab6fd09666d1b61118ec0f2ab04aa64a5c" }
+  ],
+  "bundleSha256": "d9a22a681cc8d3741c716460ee56c9fb0fe125a5d5fc4b4d877f03c3bb828916"
+}

@@ -53,7 +53,7 @@ function openEvidence(title, evidence, summary) {
   evidence.forEach(item => {
     const article = create('article', 'evidence-item');
     const meta = create('div', 'evidence-meta');
-    meta.append(create('strong', '', item.field.replace('_', ' ')), create('span', '', item.value), create('span', '', item.source), create('span', '', `chars ${item.range}`));
+    meta.append(create('strong', '', item.field.replace('_', ' ')), create('span', '', item.value), create('span', '', item.source), create('span', '', item.sourceRef), create('span', '', item.timestamp));
     const quote = create('blockquote', '', item.quote);
     article.append(meta, quote); list.append(article);
   });
@@ -181,10 +181,14 @@ function render(data) {
   window.__PARTLINE_READY__ = true;
 }
 
-fetch('/api/dashboard').then(response => {
-  if (!response.ok) throw new Error('dashboard request failed');
-  return response.json();
-}).then(render).catch(error => {
+const dashboardData = window.__PARTLINE_DATA__
+  ? Promise.resolve(window.__PARTLINE_DATA__)
+  : fetch('/api/dashboard').then(response => {
+      if (!response.ok) throw new Error('dashboard request failed');
+      return response.json();
+    });
+
+dashboardData.then(render).catch(error => {
   window.__consoleErrors.push(String(error.message || error));
   $('#fatal-error').hidden = false;
 });

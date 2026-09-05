@@ -1,113 +1,141 @@
 # PARTLINE
 
-Find the exact part that can get this repair moving today.
+PARTLINE calls local suppliers in parallel, converts their speech into traceable evidence, compares only qualifying options, and leaves the decision to the human.
 
-PARTLINE coordinates supplier inquiries for repair technicians, turns answers into a comparable decision brief, and links every accepted fact to a source call and transcript span. A cheaper incompatible part cannot outrank the requested model. Unknown prices, conflicting statements, and stale stock claims stay visible.
+Urgent repair sourcing often fails online: local inventory is missing, stale, or available only by phone. PARTLINE treats those phone conversations as a structured information source. It asks about physical availability, exact model, quantity, total price, ready time, fulfillment, warranty, and constraints; unsupported answers remain unknown.
 
-**The default demo remains deterministic. All demo suppliers, contact references, parts, prices and transcripts are fictional. Mission 002 adds one narrowly scoped, approval-gated live validation command.**
+The judge console combines two explicitly separated demonstrations:
 
-## Run locally
+| Surface | What it is | What it proves |
+| --- | --- | --- |
+| **SIMULATION · ZERO CALLS** | Deterministic four-supplier replay | Concurrency, contradiction handling, targeted clarification, partial failure, comparison, and rejection of an incompatible cheap option |
+| **REAL CALL-E VALIDATION · CONSENTING ROLE-PLAY** | One completed call to the project owner role-playing Beacon Supply | The CALL-E execution and timestamped transcript-ingestion path worked once: one start attempt, zero redials, 7/8 fields, same-call warranty clarification, no purchase or reservation |
 
-Requires Node.js 24 or later and npm. CALL-E is optional for the offline demo.
+No screen or server endpoint can call, order, reserve, purchase, pay, or make another consequential commitment.
+
+## Quick start
+
+Requires Node.js 24 or later and npm. CALL-E, credentials, phone numbers, and ignored runtime artifacts are **not required**.
 
 ```sh
 npm ci --ignore-scripts
-npm run typecheck
-npm test
-npm run demo
-npm run security
-```
-
-Start the read-only judge console after the deterministic and Mission 002 artifacts exist:
-
-```sh
+npm run proof:verify
 npm run dashboard
 ```
 
-Open `http://127.0.0.1:4173`. The console has no call, order, reservation, payment, or mutation endpoint. It presents the deterministic four-supplier comparison beside the sanitized one-call CALL-E proof.
+Open `http://127.0.0.1:4173`. The source dashboard validates the tracked proof bundle, regenerates the deterministic scenario in memory, and binds a GET-only server to loopback.
 
-The demo saves `.runs/partline-demo.json` and `.runs/partline-demo.md`. Open the Markdown brief or run:
-
-```sh
-npm start -- inspect partline-demo
-npm start -- schema
-npm start -- verify-artifact .runs/partline-demo.json
-```
-
-Use `npm run demo -- another-demo` for a fresh deterministic run. Replaying the same ID reuses the saved artifact without dispatching. The fixture clock is September 5, 2026 at 13:05 UTC; the displayed evidence time is deliberately fixed for reproducibility.
-
-## What the demo proves
-
-| Supplier | Observed scenario | Decision behavior |
-| --- | --- | --- |
-| Atlas | Exact model, two units, USD 248 total, pickup in time | Eligible alternative |
-| Beacon | USD 190 and USD 210 conflict; missing warranty | One targeted follow-up explicitly corrects total to USD 205 and supplies warranty |
-| Cedar | Simulated transient planning failure, then no answer | One bounded safe pre-start retry; other suppliers finish |
-| Delta | USD 80, but the wrong model | Excluded from viable options |
-
-Five simulated call runs, six adapter start attempts, four suppliers, two simultaneous workers, one targeted follow-up. No real calls occur. Evidence correction retains the original statements and records which evidence IDs were superseded. The brief awaits a human decision.
-
-## CALL-E readiness
-
-The official skill and CLI are installed globally on the current machine. A separate read-only check uses that CLI:
+Build and serve the portable judge package:
 
 ```sh
-npm start -- readiness
+npm run judge:build
+npm run judge:serve
 ```
 
-It runs help, authentication status, and MCP tool listing, and prints only authentication usability and tool names. It does not log in, plan, dial, or consume call credits. The default discovery path supports this Windows installation. On another platform a trusted application can pass the absolute installed `calle.js` path to `InstalledCliRunner`; global npm discovery for other platforms is not implemented.
+The output is `dist/judge/`. It contains relative assets, an embedded sanitized view model, build metadata, and a copy of the verified proof bundle. It can also be inspected by opening `dist/judge/index.html` directly. No external service is used.
 
-`CalleAdapter.start` is implemented around official `calle call start`, which performs `plan_call` then `run_call` inside the vendor CLI. `poll` uses `calle call status`, which wraps `get_call_run`. The CLI keeps plan confirmation data private. All automated integration tests inject `FakeRunner`; they never create the live transport.
+## The 20-second product story
 
-Both the adapter and process runner independently default to rejecting calls. The only executable live path is `npm run live:test`: one Beacon role-play recipient, one call submission, zero start retries, zero follow-up calls and read-only status polling. It also requires the exact Mission 002 approval marker and a grant bound to the job, ephemeral destination fingerprint, deadline and one-call budget. Such a grant is an internal capability in a trusted local process, **not** a cryptographic proof of consent or a multi-user authentication system.
+1. A workshop compressor is down; two exact ACME MX-240 contactors are needed before 16:00 UTC.
+2. Atlas and Beacon overlap in the recorded deterministic execution sequence.
+3. Beacon's conflicting prices and missing warranty trigger a bounded targeted clarification; Cedar's no-answer does not stop the job.
+4. Beacon qualifies at USD 205, USD 43 below Atlas. Delta's USD 80 offer is rejected because it is ACME MX-120.
+5. Every accepted claim opens to a transcript-backed source reference. The operator, not PARTLINE, decides.
 
-The real phone number is never part of `Job`, `Artifact`, the Markdown brief or tracked configuration. After explicit approval, run `scripts/run-live-test.ps1 -Approved` in a private local terminal. The script takes the phone through a hidden `SecureString` prompt, passes it only in the child process environment, and clears that environment afterward. Region, language, IANA timezone and today's offset-qualified 16:00 deadline are entered locally as well. The CALL-E CLI necessarily receives the number as the destination argument inside its child process; PARTLINE captures and sanitizes its output.
+## How it works
 
-## Evidence and human decisions
+```text
+typed urgent request
+  → bounded concurrent supplier inquiries
+  → transcript and event ingestion
+  → typed evidence with source references
+  → missing / conflicting field detection
+  → targeted clarification within policy limits
+  → normalized eligibility and price comparison
+  → non-executable human decision brief
+```
 
-Eight required questions cover physical stock, exact model, quantity, total including tax and currency, absolute ready time, fulfillment, warranty, and constraints. The application validates both schemas and exact quote spans. Unknown values are not assigned zero prices or manufactured confidence scores. Coverage is the fraction of required fields supported, not probability of truth. Supported currencies are USD, BDT, SGD, EUR, GBP, AUD and CAD, all using two fractional digits; other currencies are rejected until explicit unit handling is implemented.
+`Job` fixes the exact model, quantity, currency, fulfillment, absolute deadline, timezone, suppliers, questions, and bounded call policy. `CallAdapter` separates deterministic execution from the disabled-by-default CALL-E CLI transport. `Evidence` retains the typed value, exact quote, source, and provenance. Comparison never treats unknown as zero, never silently chooses the latest contradiction, and never lets a cheaper wrong model outrank a qualifying option.
 
-MCP currently has no custom result-schema input. The parser supports both deterministic `Supplier: Field: value` fixtures and the verified timestamped CALL-E `BOT`/`USER` dialogue format. Consecutive BOT lines are normalized into one question turn; recipient answers are accepted only when they explicitly support that question. Every accepted claim retains its exact transcript range and speaker/timestamp text. Relative readiness such as “before 16:00” is stored as a bound rather than fabricated into an exact stock-ready timestamp. Unsupported or ambiguous speech remains unknown.
+See [architecture](docs/architecture.md) for retry, crash recovery, idempotency, and approval invariants.
 
-The Mission 002 transcript can be replayed locally without loading a call adapter:
+## Concurrency and partial failure
+
+The deterministic artifact contains ordered orchestration events. Atlas runs from E05–E11 while Beacon runs from E06–E12; their shared horizontal interval is visible rather than asserted in prose. Beacon clarification later overlaps Cedar's bounded attempt. The chart deliberately labels this as event-sequence overlap, not elapsed call duration.
+
+The demo enforces two workers, a six-call logical budget, one safe pre-start retry, and one follow-up per supplier. A missing start acknowledgement becomes uncertain and cannot redial. A monitoring timeout preserves the run identity and permits status polling only. Declined, no-answer, busy, voicemail, and terminal failures do not trigger automatic redials.
+
+## Evidence and provenance
+
+All eight required fields are explicit: availability, exact model, quantity, total tax-inclusive price, ready time, fulfillment, warranty/returns, and constraints. Evidence is accepted only when its value type, exact quote, and source span validate. Supplier corrections retain and explicitly supersede earlier conflicting evidence.
+
+The CALL-E parser supports timestamped `BOT`/`USER` dialogue and joins consecutive BOT lines into one question. Only recipient `USER` speech can support supplier claims. Relative readiness remains a bound; it is not converted into an invented exact timestamp. Coverage means supported required fields divided by eight—not confidence, probability, or independent truth verification.
+
+## Sanitized real validation
+
+The tracked [Mission 002 proof bundle](proof/mission-002/README.md) is the only real-call material used by the judge build. It contains:
+
+- minimal validation metadata;
+- seven recipient-supported claims;
+- a sanitized timestamped transcript;
+- explicit `constraints` unknown state;
+- SHA-256 integrity metadata.
+
+It excludes phone numbers, provider run identifiers, authorization data, credentials, callback URLs, private confirmation values, and raw provider payloads. Hash verification detects changes to the sanitized files; it is not a signature or proof that a person, consent statement, inventory claim, or price was independently genuine.
 
 ```sh
-npm start -- reprocess-transcript mission002-live
+npm run proof:verify
 ```
 
-An operator can annotate a real completed transcript with the `EvidenceReview` schema in `src/review.ts` and import it with:
+## CALL-E integration
+
+The real adapter maps one authorized start to official `calle call start`, whose vendor CLI performs `plan_call` then `run_call`. Status polling maps to `get_call_run`. Application tests inject fake runners and never reach the CLI.
+
+The live transport and adapter both default to disabled. The separate `live:test` workflow additionally requires an exact approval marker, a one-target grant bound to the ephemeral destination fingerprint, an expiry, and a one-call budget. The phone number is accepted only through a private local prompt and is not part of `Job`, stored artifacts, this proof bundle, or frontend data.
+
+**Do not run `npm run live:test` for judging.** Mission 004 performs no CALL-E planning or execution. The preserved versioned proof metadata records the single historical validation; it cannot initiate another call.
+
+## Human safety boundary
+
+Inquiry authorization and purchase authority are separate. The current product ends at a recommendation marked `executable:false`. There is no transaction adapter, purchase API, reservation API, payment flow, appointment flow, or dashboard mutation endpoint. Imported evidence invalidates any previous selection, and manual approval rechecks model, quantity, readiness, fulfillment, currency, and freshness.
+
+This is an architectural absence of a consequential-action path, not merely a prompt telling an agent to behave.
+
+## Verification
 
 ```sh
-npm start -- review-evidence <run-id> <review.json>
-npm start -- approve-manual <run-id> <target-id> <reviewer>
+npm run check
 ```
 
-Review claims require exact character offsets and quotes from the stored transcript. They are labeled `human_review`, retain the observation time, and invalidate prior selection. Quote matching proves provenance, not the semantic truth of an annotation. Put any real review files inside the ignored `.runs` directory.
+That command verifies proof integrity, typechecks, runs the complete test suite, scans tracked and unignored source for secret patterns, validates any private local artifacts without printing them, and rebuilds the portable judge package.
 
-Human selection rechecks evidence freshness, exact model, quantity, deadline, fulfillment and currency. It only records approval for **manual** action. No purchasing, payment, booking, reservation, or consequential-action executor exists. Phone behavior boundaries are also included in the generated CALL-E goal, but a prompt is not an absolute guarantee of a voice agent's behavior. The first consented test must verify disclosure and refusal behavior.
+Focused commands:
 
-## Reliability and data handling
+```sh
+npm run typecheck
+npm test
+npm run security
+npm run proof:verify
+npm run judge:build
+```
 
-Each run has a filesystem lock and serialized atomic checkpoints. Dispatch intent is saved before the external start, and the returned run ID before polling. An interrupted dispatch without a persisted run ID becomes `uncertain`, never a new call. A poll timeout means monitoring paused, not that a call failed or stopped. Resume polls the saved ID. Declines and no-answer outcomes never automatically redial.
+Tests cover schemas, provenance, conservative parsing, comparison constraints, bounded retries, no-redial recovery, concurrency, idempotent replay, approval binding, the CALL-E CLI argument boundary with fake runners, proof tamper detection, clean-checkout dashboard loading, and the static read-only build.
 
-Retries are bounded and restricted to confirmed pre-start planning failures or status reads. Follow-ups are limited, count toward the contact budget, and use only unresolved questions. A definitive disqualifier stops follow-ups. Persistence failure halts further dispatch; sibling workers finish or stop before the lock is released. Crash locks deliberately require operator inspection rather than unsafe automatic stealing.
+## Repository map
 
-The application never reads OAuth caches, inherits CALL-E endpoint overrides, or echoes raw subprocess errors. It validates/redacts supported credential patterns and the authorized destination before output or storage. Artifacts and local review inputs are ignored by Git. They can still contain business contact information and transcripts: keep them private, use an OS-protected directory, and review any demo export. File modes are requested on POSIX; Windows permissions rely on the user's directory ACLs. The secret scanner is a guardrail, not a universal secret detector.
+- `proof/mission-002/`: versioned sanitized real-validation proof and integrity manifest.
+- `dashboard/`: restrained read-only operational UI.
+- `src/dashboard/`: proof-backed view model, source server, portable builder, and static server.
+- `src/domain.ts`, `evidence.ts`, `comparison.ts`: strict domain, evidence, and qualification rules.
+- `src/orchestrator.ts`, `store.ts`: bounded workers, checkpoints, replay, and recovery.
+- `src/adapters/`: mock boundary and disabled-by-default CALL-E CLI adapter.
+- `scripts/verify-proof.ts`, `build-judge.ts`, `security-check.ts`: reproducibility and safety checks.
+- `docs/judge-walkthrough.md`: exact 90-second demonstration.
+- `docs/devpost-prep.md`: submission-ready copy drafts.
+- `docs/adversarial-audit.md`: skeptical-judge audit and residual limitations.
 
-## Project map
+## Security, privacy, and limitations
 
-- `src/domain.ts`: strict runtime schemas and inferred TypeScript types.
-- `src/orchestrator.ts`: bounded worker pool, checkpoints, resume and follow-ups.
-- `src/evidence.ts`, `comparison.ts`, `review.ts`: provenance, normalization, uncertainty, human evidence review.
-- `src/adapters/`: domain adapter and installed CALL-E CLI boundary.
-- `src/store.ts`, `decision.ts`, `report.ts`, `cli.ts`: persistence, human choice, brief and local interface.
-- `src/dashboard/`, `dashboard/`: typed judge view model, read-only server, and responsive operational console.
-- `src/demo.ts`: explicitly fictional deterministic adapter and scenario.
-- `src/live-validation.ts`: the fixed Mission 002 one-call job and destination-bound grant.
-- `tests/`: domain, evidence, orchestration, transport, persistence and approval tests.
-- `docs/product.md`: concept selection and judge narrative.
-- `docs/architecture.md`: invariants, recovery and dashboard contract.
-- `docs/research.md`: official sources and submission obligations.
-- `docs/live-experiment.md`: the next proposed test; not authorization to call.
+The source and static servers bind to `127.0.0.1`, allow only GET, set restrictive security headers, and render dynamic values with `textContent`. The static server has `connect-src 'none'`. Proof loading uses strict schemas, exact transcript line matching, secret rejection, phone-like value rejection, and hash verification before rendering.
 
-This is a tested local judge product, not a hosted multi-user procurement system. Live supplier value beyond the consenting role-play, broader language coverage, retention policy, access controls, and deployment hardening remain future work.
+This remains a local single-operator prototype, not a hosted multi-user procurement system. The one real validation used a consenting role-play, not a real supplier. The deterministic concurrency trace is not a wall-clock benchmark. Supplier speech is traceable evidence, not independent inventory certification. Broader language coverage, authenticated private transcript storage, retention/deletion controls, per-supplier opt-out records, and a wider consented call sample remain future work.

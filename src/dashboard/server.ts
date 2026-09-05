@@ -2,7 +2,11 @@ import { createServer, type ServerResponse } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { FileRunStore } from '../store.js';
+import { demoJob, demoRuntime, MockAdapter } from '../demo.js';
+import { runJob } from '../orchestrator.js';
+import { loadSanitizedProof } from '../proof.js';
+import { simulationGrant } from '../safety.js';
+import { MemoryRunStore } from '../store.js';
 import { buildDashboardModel, type DashboardModel } from './view.js';
 
 const staticFiles = new Map([
@@ -19,19 +23,22 @@ function headers(response: ServerResponse, type: string): void {
 }
 
 export async function dashboardData(root = process.cwd()) {
-  const store = new FileRunStore(resolve(root, '.runs'));
-  const [live, demo] = await Promise.all([store.load('mission002-live'), store.load('partline-demo')]);
-  if (!live || !demo) throw new Error('Required judge artifacts absent; run the deterministic demo and restore the sanitized Mission 002 artifact');
-  return buildDashboardModel(live, demo);
+  const [{ proof }, demo] = await Promise.all([
+    loadSanitizedProof(root),
+    runJob(demoJob, new MockAdapter(), new MemoryRunStore(), demoRuntime, simulationGrant(demoJob)),
+  ]);
+  return buildDashboardModel(proof, demo);
 }
 
 export function createDashboardServer({ root = process.cwd(), model }: { root?: string; model?: DashboardModel } = {}) {
+  const resolvedModel = model ? Promise.resolve(model) : dashboardData(root);
   return createServer(async (request, response) => {
     try {
       const path = new URL(request.url ?? '/', 'http://localhost').pathname;
       if (request.method !== 'GET') { response.statusCode = 405; response.end('Method not allowed'); return; }
       if (path === '/health') { headers(response, 'application/json; charset=utf-8'); response.end(JSON.stringify({ ok: true, mode: 'read_only' })); return; }
-      if (path === '/api/dashboard') { headers(response, 'application/json; charset=utf-8'); response.end(JSON.stringify(model ?? await dashboardData(root))); return; }
+      if (path === '/api/dashboard') { headers(response, 'application/json; charset=utf-8'); response.end(JSON.stringify(await resolvedModel)); return; }
+      if (path === '/data.js') { headers(response, 'text/javascript; charset=utf-8'); response.end(`window.__PARTLINE_DATA__=${JSON.stringify(await resolvedModel)};`); return; }
       const file = staticFiles.get(path);
       if (!file) { response.statusCode = 404; response.end('Not found'); return; }
       headers(response, contentTypes[extname(file)] ?? 'application/octet-stream');

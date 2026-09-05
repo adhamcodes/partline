@@ -10,10 +10,14 @@
     "test": "tsx --test tests/*.test.ts",
     "demo": "tsx src/cli.ts demo",
     "dashboard": "tsx src/dashboard/server.ts",
+    "judge:build": "tsx scripts/build-judge.ts",
+    "judge:serve": "tsx src/dashboard/static-server.ts",
+    "judge": "npm run judge:build && npm run judge:serve",
+    "proof:verify": "tsx scripts/verify-proof.ts",
     "live:test": "tsx src/cli.ts live-test",
     "start": "tsx src/cli.ts",
     "security": "tsx scripts/security-check.ts",
-    "check": "npm run typecheck && npm test && npm run security"
+    "check": "npm run proof:verify && npm run typecheck && npm test && npm run security && npm run judge:build"
   },
   "dependencies": { "zod": "4.1.5" },
   "devDependencies": { "@types/node": "24.3.1", "tsx": "4.20.5", "typescript": "5.9.2" }

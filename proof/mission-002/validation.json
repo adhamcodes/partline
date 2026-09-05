@@ -1,0 +1,94 @@
+{
+  "schemaVersion": 1,
+  "proofId": "mission-002-calle-validation",
+  "kind": "real_calle_validation",
+  "context": "consenting_role_play",
+  "supplierAlias": "Beacon Supply",
+  "status": "COMPLETED",
+  "callCount": 1,
+  "startAttempts": 1,
+  "redialCount": 0,
+  "purchaseOrReservation": false,
+  "request": {
+    "exactModel": "ACME MX-240",
+    "quantity": 2,
+    "deadline": "2026-09-05T16:00:00+06:00",
+    "timezone": "Asia/Dhaka",
+    "fulfillment": "pickup"
+  },
+  "coverage": {
+    "supported": 7,
+    "required": 8,
+    "unknown": ["constraints"]
+  },
+  "sameCallClarification": {
+    "field": "warranty",
+    "completed": true,
+    "sourceRef": "transcript.sanitized.txt:L18-L23"
+  },
+  "evidence": [
+    {
+      "id": "m002-availability",
+      "field": "availability",
+      "value": { "kind": "boolean", "value": true },
+      "quote": "[00:00:28] BOT: Do you have two new ACME MX-240 contactors in stock right now?\n[00:00:34] USER: yeah that's right",
+      "speaker": "USER",
+      "timestamp": "00:00:34",
+      "sourceRef": "transcript.sanitized.txt:L4-L5"
+    },
+    {
+      "id": "m002-model",
+      "field": "model",
+      "value": { "kind": "text", "value": "ACME MX-240" },
+      "quote": "[00:00:36] BOT: Great - are the ACME MX-240 units the exact manufacturer and model shown on the label?\n[00:00:47] USER: Correct.",
+      "speaker": "USER",
+      "timestamp": "00:00:47",
+      "sourceRef": "transcript.sanitized.txt:L6-L7"
+    },
+    {
+      "id": "m002-quantity",
+      "field": "quantity",
+      "value": { "kind": "quantity", "value": 2 },
+      "quote": "[00:00:49] BOT: How many new units are actually available today?\n[00:00:55] USER: 2",
+      "speaker": "USER",
+      "timestamp": "00:00:55",
+      "sourceRef": "transcript.sanitized.txt:L8-L9"
+    },
+    {
+      "id": "m002-total-price",
+      "field": "total_price",
+      "value": { "kind": "money", "minor": 20500, "currency": "USD", "basis": "total_including_tax" },
+      "quote": "[00:00:56] BOT: What's the total price for both in USD,\n[00:00:59] BOT: including tax and any fees?\n[00:01:05] USER: USD205 including tax",
+      "speaker": "USER",
+      "timestamp": "00:01:05",
+      "sourceRef": "transcript.sanitized.txt:L10-L12"
+    },
+    {
+      "id": "m002-ready-at",
+      "field": "ready_at",
+      "value": { "kind": "instant_bound", "latest": "2026-09-05T16:00:00+06:00" },
+      "quote": "[00:01:15] USER: yeah before 4:00 PM Asia slash Dhaka\n[00:01:17] BOT: Thanks - is that ready time confirmed,\n[00:01:19] BOT: or just estimated?\n[00:01:26] USER: Confirmed.",
+      "speaker": "USER",
+      "timestamp": "00:01:15-00:01:26",
+      "sourceRef": "transcript.sanitized.txt:L14-L17"
+    },
+    {
+      "id": "m002-fulfillment",
+      "field": "fulfillment",
+      "value": { "kind": "text", "value": "pickup" },
+      "quote": "[00:01:07] BOT: Is pickup available today without any reservation?\n[00:01:15] USER: yeah before 4:00 PM Asia slash Dhaka",
+      "speaker": "USER",
+      "timestamp": "00:01:15",
+      "sourceRef": "transcript.sanitized.txt:L13-L14"
+    },
+    {
+      "id": "m002-warranty",
+      "field": "warranty",
+      "value": { "kind": "text", "value": "none" },
+      "quote": "[00:01:35] BOT: Just to confirm,\n[00:01:36] BOT: is there any warranty or return restriction, or none?\n[00:01:41] USER: no",
+      "speaker": "USER",
+      "timestamp": "00:01:41",
+      "sourceRef": "transcript.sanitized.txt:L21-L23"
+    }
+  ]
+}
