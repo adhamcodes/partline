@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import type { Call, Evidence, Field, Result, Value } from '../src/domain.js';
 import { demoJob, demoRuntime, fixtureResult, quoteTranscript } from '../src/demo.js';
 import { assess, canonical, extractTranscript, ingest } from '../src/evidence.js';
@@ -50,6 +51,27 @@ test('unstructured prose, unit prices and fuzzy times remain unknown', () => {
   assert.deepEqual(extractTranscript('Agent: Model: MX-240\nWe probably have some. About $50 each before tax. Ready after lunch.'), []);
   assert.equal(extractTranscript('Supplier: Total including tax: USD 1.25')[0]!.value.kind, 'money');
   assert.deepEqual(extractTranscript('AI: Exact model: ACME MX-240\nExact model: ACME MX-240'), []);
+});
+test('timestamped CALL-E BOT/USER dialogue preserves recipient-backed provenance', () => {
+  const transcript = readFileSync(new URL('fixtures/calle-timestamped-transcript.txt', import.meta.url), 'utf8').trimEnd();
+  const job = { ...demoJob, deadline: '2026-09-05T16:00:00+06:00', timezone: 'Asia/Dhaka' };
+  const claims = extractTranscript(transcript, job);
+  assert.deepEqual(claims.map(claim => claim.field).sort(), ['availability', 'fulfillment', 'model', 'quantity', 'ready_at', 'total_price', 'warranty']);
+  for (const evidence of claims) {
+    assert.equal(transcript.slice(evidence.start, evidence.end), evidence.quote);
+    assert.match(evidence.quote, /\[\d\d:\d\d:\d\d\] USER:/);
+  }
+  assert.deepEqual(claims.find(claim => claim.field === 'availability')!.value, { kind: 'boolean', value: true });
+  assert.deepEqual(claims.find(claim => claim.field === 'model')!.value, { kind: 'text', value: 'ACME MX-240' });
+  assert.deepEqual(claims.find(claim => claim.field === 'quantity')!.value, { kind: 'quantity', value: 2 });
+  assert.deepEqual(claims.find(claim => claim.field === 'total_price')!.value, { kind: 'money', currency: 'USD', minor: 20500, basis: 'total_including_tax' });
+  assert.deepEqual(claims.find(claim => claim.field === 'fulfillment')!.value, { kind: 'text', value: 'pickup' });
+  assert.deepEqual(claims.find(claim => claim.field === 'ready_at')!.value, { kind: 'instant_bound', latest: '2026-09-05T16:00:00+06:00' });
+  assert.deepEqual(claims.find(claim => claim.field === 'warranty')!.value, { kind: 'text', value: 'none' });
+  assert.match(claims.find(claim => claim.field === 'quantity')!.quote, /BOT: How many/);
+  assert.match(claims.find(claim => claim.field === 'total_price')!.quote, /BOT: including tax and any fees/);
+  assert.match(claims.find(claim => claim.field === 'fulfillment')!.quote, /BOT: Is pickup available/);
+  assert.equal(claims.some(claim => claim.field === 'constraints'), false);
 });
 test('confirmed unavailable supplier does not receive pointless followups', () => {
   const c = complete(); c.evidence = c.evidence.filter(e => e.field === 'availability'); replace(c, 'availability', { kind: 'boolean', value: false });

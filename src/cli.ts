@@ -10,6 +10,7 @@ import { simulationGrant } from './safety.js';
 import { FileRunStore } from './store.js';
 import { reviewEvidence } from './review.js';
 import { mission002Approval, mission002ContactRef, mission002Grant, mission002Job } from './live-validation.js';
+import { reprocessTranscripts } from './reprocess.js';
 
 async function main(args: string[]): Promise<void> {
   const command = args[0] ?? 'help';
@@ -47,6 +48,18 @@ async function main(args: string[]): Promise<void> {
     return;
   }
   if (command === 'verify-artifact' && args.length === 2) { Artifact.parse(JSON.parse(await readFile(resolve(args[1]!), 'utf8'))); console.log('Artifact schema valid'); return; }
+  if (command === 'reprocess-transcript' && args.length === 2) {
+    const release = await store.acquire(args[1]!);
+    try {
+      const artifact = await store.load(args[1]!); if (!artifact) throw new Error('Run absent');
+      const updated = reprocessTranscripts(artifact);
+      await store.save(updated);
+      const brief = report(updated);
+      await writeFile(resolve('.runs', `${updated.job.id}.md`), brief, { mode: 0o600 });
+      console.log(brief);
+    } finally { await release(); }
+    return;
+  }
   if (command === 'readiness' && args.length === 1) { console.log(JSON.stringify(await readiness(InstalledCliRunner.discover()), null, 2)); return; }
   if (command === 'live-test' && args.length === 1) {
     if (process.env.PARTLINE_LIVE_APPROVAL !== mission002Approval) throw new Error('Explicit Mission 002 approval marker absent');
@@ -84,6 +97,6 @@ async function main(args: string[]): Promise<void> {
     return;
   }
   if (command !== 'help') throw new Error('Unsupported command; live execution is disabled in Mission 001');
-  console.log('PARTLINE\n  demo [run-id]          Deterministic fictional sourcing workflow\n  inspect <run-id>       Read a saved decision brief\n  approve-manual <run-id> <target-id> <reviewer>\n                        Record a human choice; never execute it\n  review-evidence <run-id> <review.json>\n                        Import operator annotations with exact transcript spans\n  schema                Print the dashboard artifact JSON Schema\n  verify-artifact <path> Validate an artifact\n  readiness             Read CALL-E auth status and tool names only\n  live-test             Mission 002 only: one approval-gated real call');
+  console.log('PARTLINE\n  demo [run-id]          Deterministic fictional sourcing workflow\n  inspect <run-id>       Read a saved decision brief\n  approve-manual <run-id> <target-id> <reviewer>\n                        Record a human choice; never execute it\n  review-evidence <run-id> <review.json>\n                        Import operator annotations with exact transcript spans\n  reprocess-transcript <run-id>\n                        Rebuild evidence from an existing transcript; never call\n  schema                Print the dashboard artifact JSON Schema\n  verify-artifact <path> Validate an artifact\n  readiness             Read CALL-E auth status and tool names only\n  live-test             Mission 002 only: one approval-gated real call');
 }
 main(process.argv.slice(2)).catch(() => { console.error('PARTLINE operation failed. Check command, input, approval, or run lock. Raw errors are suppressed to protect credentials.'); process.exitCode = 1; });

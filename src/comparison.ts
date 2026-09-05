@@ -16,6 +16,10 @@ export function compare(job: Job, calls: Call[], now: string): Comparison[] {
     const money = value('total_price');
     if (money?.kind === 'money') { if (money.currency === job.currency) row.totalMinor = money.minor; else { if (row.eligibility !== 'does_not_meet') row.eligibility = 'needs_verification'; row.reasons.push('currency_not_comparable'); } }
     const ready = value('ready_at'); if (ready?.kind === 'instant') { row.readyAt = ready.value; if (Date.parse(ready.value) > Date.parse(job.deadline)) reject('misses_deadline'); }
+    if (ready?.kind === 'instant_bound') {
+      row.readyBy = ready.latest;
+      if (Date.parse(ready.latest) > Date.parse(job.deadline)) { if (row.eligibility !== 'does_not_meet') row.eligibility = 'needs_verification'; row.reasons.push('ready_bound_exceeds_deadline'); }
+    }
     return row;
   });
   const order = { meets_requirements: 0, needs_verification: 1, does_not_meet: 2 };

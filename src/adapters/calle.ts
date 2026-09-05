@@ -84,6 +84,7 @@ export async function readiness(runner: CliRunner): Promise<{ authenticated: boo
 
 export class CalleAdapter implements CallAdapter {
   readonly mode = 'live' as const;
+  private readonly contexts = new Map<string, CallRequest['job']>();
   constructor(private readonly runner: CliRunner, private readonly options: { enableLive: boolean; grant?: CallGrant; now: () => string; resolvePhone?: (contactRef: string) => string; redactionPhones?: () => string[] }) {}
   async start(request: CallRequest): Promise<{ runId: string }> {
     if (!this.options.enableLive) throw new AdapterError('policy_blocked');
@@ -98,6 +99,7 @@ export class CalleAdapter implements CallAdapter {
       throw new AdapterError('uncertain_start');
     }
     if (typeof data.run_id !== 'string' || !data.run_id.length || data.run_id.length > 256 || redact(data.run_id) !== data.run_id || redactPhone(data.run_id, phone) !== data.run_id) throw new AdapterError('uncertain_start');
+    this.contexts.set(data.run_id, request.job);
     return { runId: data.run_id };
   }
   async poll(runId: string): Promise<PollResult> {
@@ -113,7 +115,7 @@ export class CalleAdapter implements CallAdapter {
     let transcript = typeof result.transcript === 'string' ? result.transcript : '';
     for (const phone of this.options.redactionPhones?.() ?? []) transcript = redactPhone(transcript, phone);
     transcript = redact(transcript);
-    const parsed = Result.safeParse({ status: terminal.data, transcript, claims: terminal.data === 'COMPLETED' ? extractTranscript(transcript) : [], source: 'transcript_parser' });
+    const parsed = Result.safeParse({ status: terminal.data, transcript, claims: terminal.data === 'COMPLETED' ? extractTranscript(transcript, this.contexts.get(runId)) : [], source: 'transcript_parser' });
     if (!parsed.success) throw new AdapterError('invalid_response');
     return { state: 'terminal', result: parsed.data };
   }

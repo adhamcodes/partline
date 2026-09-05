@@ -12,6 +12,7 @@ export const Value = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('quantity'), value: z.number().int().nonnegative().max(1000000) }).strict(),
   z.object({ kind: z.literal('money'), minor: z.number().int().nonnegative().max(1000000000), currency: Currency, basis: z.literal('total_including_tax') }).strict(),
   z.object({ kind: z.literal('instant'), value: Instant }).strict(),
+  z.object({ kind: z.literal('instant_bound'), latest: Instant }).strict(),
 ]);
 export type Value = z.infer<typeof Value>;
 export const Question = z.object({ field: Field, prompt: z.string().min(1).max(1000), required: z.boolean() }).strict();
@@ -51,7 +52,7 @@ export const Issue = z.object({ field: Field, reason: z.enum(['missing', 'tentat
 export type Issue = z.infer<typeof Issue>;
 export const Cell = z.object({ field: Field, state: z.enum(['supported', 'unknown', 'tentative', 'contradicted', 'stale']), value: Value.optional(), evidenceIds: z.array(Id) });
 export type Cell = z.infer<typeof Cell>;
-export const Comparison = z.object({ targetId: Id, eligibility: z.enum(['meets_requirements', 'needs_verification', 'does_not_meet']), reasons: z.array(z.string()), cells: z.array(Cell), coverage: z.number().min(0).max(1), confidence: z.enum(['supported', 'incomplete', 'conflicted']), totalMinor: z.number().optional(), readyAt: Instant.optional() });
+export const Comparison = z.object({ targetId: Id, eligibility: z.enum(['meets_requirements', 'needs_verification', 'does_not_meet']), reasons: z.array(z.string()), cells: z.array(Cell), coverage: z.number().min(0).max(1), confidence: z.enum(['supported', 'incomplete', 'conflicted']), totalMinor: z.number().optional(), readyAt: Instant.optional(), readyBy: Instant.optional() });
 export type Comparison = z.infer<typeof Comparison>;
 export const Artifact = z.object({
   schemaVersion: z.literal(1), mode: z.enum(['mock', 'live']), job: Job, evaluatedAt: Instant,
