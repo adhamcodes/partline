@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { CalleAdapter, goalFor, InstalledCliRunner, payload, readiness, type CliRunner } from '../src/adapters/calle.js';
 import { demoJob, demoRuntime, quoteTranscript } from '../src/demo.js';
-import { fingerprint, type CallGrant } from '../src/safety.js';
+import { contactFingerprint, fingerprint, type CallGrant } from '../src/safety.js';
 import { AdapterError, type CallRequest } from '../src/adapters/adapter.js';
 
 class FakeRunner implements CliRunner {
@@ -10,9 +10,10 @@ class FakeRunner implements CliRunner {
   constructor(private readonly replies: unknown[]) {}
   async run(args: string[]) { this.args.push(args); return this.replies.shift(); }
 }
-const grant: CallGrant = { jobFingerprint: fingerprint(demoJob), mode: 'live', purpose: 'information_only', expiresAt: demoJob.deadline, maxCalls: 6 };
+const testPhone = '+12025550101';
+const grant: CallGrant = { jobFingerprint: fingerprint(demoJob), contactFingerprints: Object.fromEntries(demoJob.targets.map(target => [target.id, contactFingerprint(target.id === 'atlas' ? testPhone : target.contactRef)])), mode: 'live', purpose: 'information_only', expiresAt: demoJob.deadline, maxCalls: 6 };
 const request: CallRequest = { callId: 'unit-test', job: demoJob, target: demoJob.targets[0]!, questions: demoJob.questions, round: 0 };
-function adapter(runner: FakeRunner) { return new CalleAdapter(runner, { enableLive: true, grant, now: demoRuntime.now }); }
+function adapter(runner: FakeRunner) { return new CalleAdapter(runner, { enableLive: true, grant, now: demoRuntime.now, resolvePhone: () => testPhone, redactionPhones: () => [testPhone] }); }
 test('default live lock blocks start and poll before reaching the runner', async () => {
   const runner = new FakeRunner([]); const blocked = new CalleAdapter(runner, { enableLive: false, now: demoRuntime.now });
   await assert.rejects(blocked.start(request)); await assert.rejects(blocked.poll('opaque-run')); assert.equal(runner.args.length, 0);
@@ -26,7 +27,7 @@ test('even enabled adapter refuses absent or expired human call approval', async
 test('maps start to official CLI that internally performs plan_call then run_call', async () => {
   const runner = new FakeRunner([{ ok: true, run_id: 'opaque-run' }]);
   assert.deepEqual(await adapter(runner).start(request), { runId: 'opaque-run' });
-  assert.deepEqual(runner.args[0]!.slice(0, 4), ['call', 'start', '--to-phone', '+12025550101']);
+  assert.deepEqual(runner.args[0]!.slice(0, 4), ['call', 'start', '--to-phone', testPhone]);
   assert.ok(!runner.args.flat().some(arg => arg.includes('--confirm-token')));
   const goal = runner.args[0]![5]!; assert.match(goal, /AI assistant/); assert.match(goal, /Do not impersonate/); assert.match(goal, /No substitutions/);
 });
@@ -75,11 +76,21 @@ test('provider secrets in transcript are redacted and unknown fields are not per
   const runner = new FakeRunner([{ ok: true, result: { structuredContent: { run_id: 'r', status: 'COMPLETED', result: { transcript: ['Bearer', 'synthetic-secret'].join(' '), api_key: 'synthetic-secret' } } } }]);
   const result = await adapter(runner).poll('r'); assert.ok(!JSON.stringify(result).includes('synthetic-secret'));
 });
+test('authorized phone is redacted from formatted transcript variants', async () => {
+  const runner = new FakeRunner([{ ok: true, result: { structuredContent: { run_id: 'r', status: 'COMPLETED', result: { transcript: `Supplier: The number is +1 (202) 555-0101` } } } }]);
+  const result = await adapter(runner).poll('r'); assert.ok(!JSON.stringify(result).includes('555')); assert.match(JSON.stringify(result), /REDACTED_PHONE/);
+});
+test('contact fingerprint mismatch blocks before CLI submission', async () => {
+  const runner = new FakeRunner([]);
+  const wrong = new CalleAdapter(runner, { enableLive: true, grant, now: demoRuntime.now, resolvePhone: () => '+12025550199' });
+  await assert.rejects(wrong.start(request), e => e instanceof AdapterError && e.kind === 'policy_blocked');
+  assert.equal(runner.args.length, 0);
+});
 test('goal generation rejects secrets in request data', () => {
   const modified = structuredClone(request); modified.job.request = ['Bearer', 'synthetic-secret'].join(' ');
   assert.throws(() => goalFor(modified));
 });
-test('installed transport refuses calls in Mission 001 without spawning a CLI', async () => {
+test('installed transport refuses calls unless explicitly enabled without spawning a CLI', async () => {
   const runner = new InstalledCliRunner(process.execPath);
   await assert.rejects(runner.run(['call', 'start']));
   await assert.rejects(runner.run(['mcp', 'call', 'run_call']));

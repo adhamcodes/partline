@@ -2,16 +2,16 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Job, Value, Artifact } from '../src/domain.js';
 import { demoJob } from '../src/demo.js';
-import { assertNoSecrets, checkGrant, redact, simulationGrant } from '../src/safety.js';
+import { assertNoSecrets, checkGrant, redact, redactPhone, simulationGrant } from '../src/safety.js';
 
 test('accepts complete job and rejects unexpected keys', () => {
   assert.equal(Job.parse(demoJob).targets.length, 4);
   assert.equal(Job.safeParse({ ...demoJob, api_key: 'synthetic' }).success, false);
 });
 for (const [label, mutate] of [
-  ['ambiguous number', (j: Job) => { j.targets[0]!.phone = '555-0101'; }],
+  ['invalid contact reference', (j: Job) => { j.targets[0]!.contactRef = 'not-a-ref'; }],
   ['duplicate target ID', (j: Job) => { j.targets[1]!.id = j.targets[0]!.id; }],
-  ['duplicate number', (j: Job) => { j.targets[1]!.phone = j.targets[0]!.phone; }],
+  ['duplicate contact reference', (j: Job) => { j.targets[1]!.contactRef = j.targets[0]!.contactRef; }],
   ['missing required question', (j: Job) => { j.questions.pop(); }],
   ['duplicate question', (j: Job) => { j.questions.push(j.questions[0]!); }],
   ['unbounded concurrency', (j: Job) => { j.policy.concurrency = 100; }],
@@ -32,10 +32,14 @@ test('call grants bind exact request, contacts, limits and mode', () => {
   checkGrant(demoJob, grant, 'mock', demoJob.createdAt);
   assert.throws(() => checkGrant(demoJob, grant, 'live', demoJob.createdAt));
   assert.throws(() => checkGrant(demoJob, grant, 'mock', demoJob.deadline));
-  const changed = structuredClone(demoJob); changed.targets[0]!.phone = '+12025550199';
+  const changed = structuredClone(demoJob); changed.targets[0]!.contactRef = 'fixture:changed';
   assert.throws(() => checkGrant(changed, grant, 'mock', changed.createdAt));
   assert.throws(() => checkGrant(demoJob, undefined, 'mock', demoJob.createdAt));
   assert.throws(() => checkGrant(demoJob, { ...grant, expiresAt: 'invalid' }, 'mock', demoJob.createdAt));
+});
+test('exact E.164 phone variants are redacted before persistence', () => {
+  assert.equal(redactPhone('Destination +1 (202) 555-0101 accepted', '+12025550101'), 'Destination [REDACTED_PHONE]accepted');
+  assert.throws(() => redactPhone('text', '555-0101'));
 });
 test('sensitive fields and credential values are blocked without echoing them', () => {
   const synthetic = ['Bearer', 'unit-test-secret'].join(' ');

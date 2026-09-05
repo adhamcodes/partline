@@ -7,10 +7,10 @@ export const demoJob: Job = Job.parse({
   id: 'partline-demo', request: 'Our workshop compressor is down. Find two new ACME MX-240 contactors for pickup before 16:00 today. Exact model only. Collect quotes; do not order or reserve anything.',
   exactModel: 'ACME MX-240', quantity: 2, currency: 'USD', requiredFulfillment: 'pickup', createdAt: '2026-09-05T13:00:00Z', deadline: '2026-09-05T16:00:00Z', timezone: 'UTC', maxAgeMinutes: 60,
   targets: [
-    { id: 'atlas', name: 'Atlas Parts (fictional)', phone: '+12025550101', region: 'US', language: 'English' },
-    { id: 'beacon', name: 'Beacon Supply (fictional)', phone: '+12025550102', region: 'US', language: 'English' },
-    { id: 'cedar', name: 'Cedar Components (fictional)', phone: '+12025550103', region: 'US', language: 'English' },
-    { id: 'delta', name: 'Delta Depot (fictional)', phone: '+12025550104', region: 'US', language: 'English' },
+    { id: 'atlas', name: 'Atlas Parts (fictional)', contactRef: 'fixture:atlas', region: 'US', language: 'English' },
+    { id: 'beacon', name: 'Beacon Supply (fictional)', contactRef: 'fixture:beacon', region: 'US', language: 'English' },
+    { id: 'cedar', name: 'Cedar Components (fictional)', contactRef: 'fixture:cedar', region: 'US', language: 'English' },
+    { id: 'delta', name: 'Delta Depot (fictional)', contactRef: 'fixture:delta', region: 'US', language: 'English' },
   ],
   questions: [
     { field: 'availability', prompt: 'Do you physically have the requested new part in stock now, rather than a catalog listing?', required: true },

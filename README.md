@@ -4,7 +4,7 @@ Find the exact part that can get this repair moving today.
 
 PARTLINE coordinates supplier inquiries for repair technicians, turns answers into a comparable decision brief, and links every accepted fact to a source call and transcript span. A cheaper incompatible part cannot outrank the requested model. Unknown prices, conflicting statements, and stale stock claims stay visible.
 
-**Mission 001 is a deterministic foundation. All demo suppliers, numbers, parts, prices and transcripts are fictional. Live calling is disabled in the CLI.**
+**The default demo remains deterministic. All demo suppliers, contact references, parts, prices and transcripts are fictional. Mission 002 adds one narrowly scoped, approval-gated live validation command.**
 
 ## Run locally
 
@@ -51,7 +51,9 @@ It runs help, authentication status, and MCP tool listing, and prints only authe
 
 `CalleAdapter.start` is implemented around official `calle call start`, which performs `plan_call` then `run_call` inside the vendor CLI. `poll` uses `calle call status`, which wraps `get_call_run`. The CLI keeps plan confirmation data private. All automated integration tests inject `FakeRunner`; they never create the live transport.
 
-Both the adapter and process runner independently default to rejecting calls. There is no `--live` command. A future authorized experiment requires explicit wiring of both gates and a human grant bound to the exact job fingerprint, destination set, deadline, question list and maximum calls. Such a grant is an internal capability in a trusted local process, **not** a cryptographic proof of consent or a multi-user authentication system.
+Both the adapter and process runner independently default to rejecting calls. The only executable live path is `npm run live:test`: one Beacon role-play recipient, one call submission, zero start retries, zero follow-up calls and read-only status polling. It also requires the exact Mission 002 approval marker and a grant bound to the job, ephemeral destination fingerprint, deadline and one-call budget. Such a grant is an internal capability in a trusted local process, **not** a cryptographic proof of consent or a multi-user authentication system.
+
+The real phone number is never part of `Job`, `Artifact`, the Markdown brief or tracked configuration. After explicit approval, run `scripts/run-live-test.ps1 -Approved` in a private local terminal. The script takes the phone through a hidden `SecureString` prompt, passes it only in the child process environment, and clears that environment afterward. Region, language, IANA timezone and today's offset-qualified 16:00 deadline are entered locally as well. The CALL-E CLI necessarily receives the number as the destination argument inside its child process; PARTLINE captures and sanitizes its output.
 
 ## Evidence and human decisions
 
@@ -76,7 +78,7 @@ Each run has a filesystem lock and serialized atomic checkpoints. Dispatch inten
 
 Retries are bounded and restricted to confirmed pre-start planning failures or status reads. Follow-ups are limited, count toward the contact budget, and use only unresolved questions. A definitive disqualifier stops follow-ups. Persistence failure halts further dispatch; sibling workers finish or stop before the lock is released. Crash locks deliberately require operator inspection rather than unsafe automatic stealing.
 
-The application never reads OAuth caches, inherits CALL-E endpoint overrides, or echoes raw subprocess errors. It validates/redacts supported credential patterns before output or storage. Artifacts and local review inputs are ignored by Git. They can still contain business contact information and transcripts: keep them private, use an OS-protected directory, and review any demo export. File modes are requested on POSIX; Windows permissions rely on the user's directory ACLs. The secret scanner is a guardrail, not a universal secret detector.
+The application never reads OAuth caches, inherits CALL-E endpoint overrides, or echoes raw subprocess errors. It validates/redacts supported credential patterns and the authorized destination before output or storage. Artifacts and local review inputs are ignored by Git. They can still contain business contact information and transcripts: keep them private, use an OS-protected directory, and review any demo export. File modes are requested on POSIX; Windows permissions rely on the user's directory ACLs. The secret scanner is a guardrail, not a universal secret detector.
 
 ## Project map
 
@@ -86,6 +88,7 @@ The application never reads OAuth caches, inherits CALL-E endpoint overrides, or
 - `src/adapters/`: domain adapter and installed CALL-E CLI boundary.
 - `src/store.ts`, `decision.ts`, `report.ts`, `cli.ts`: persistence, human choice, brief and local interface.
 - `src/demo.ts`: explicitly fictional deterministic adapter and scenario.
+- `src/live-validation.ts`: the fixed Mission 002 one-call job and destination-bound grant.
 - `tests/`: domain, evidence, orchestration, transport, persistence and approval tests.
 - `docs/product.md`: concept selection and judge narrative.
 - `docs/architecture.md`: invariants, recovery and future dashboard contract.

@@ -4,7 +4,7 @@
 
 A repair technician has a disabled machine, an exact replacement part requirement, and a deadline. Online pages cannot reliably establish that two compatible units are physically on a local shelf now. PARTLINE asks the people who can check, then shows the technician a short list of evidence-backed options.
 
-This retains the user's phone-as-inventory-API insight while narrowing the first product to exact replacement parts. General procurement, service hiring and open-ended shopping are excluded from the first workflow. The operator supplies the candidate businesses and full international phone numbers; discovery, scraping and guessed contacts are outside Mission 001.
+This retains the user's phone-as-inventory-API insight while narrowing the first product to exact replacement parts. General procurement, service hiring and open-ended shopping are excluded from the first workflow. The operator supplies candidate businesses and resolves opaque contact references through a private runtime input; discovery, scraping, persisted phone numbers and guessed contacts are outside the workflow.
 
 ## Alternatives assessed independently
 

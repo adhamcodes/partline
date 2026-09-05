@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit",
     "test": "tsx --test tests/*.test.ts",
     "demo": "tsx src/cli.ts demo",
+    "live:test": "tsx src/cli.ts live-test",
     "start": "tsx src/cli.ts",
     "security": "tsx scripts/security-check.ts",
     "check": "npm run typecheck && npm test && npm run security"

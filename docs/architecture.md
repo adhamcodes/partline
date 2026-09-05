@@ -21,7 +21,7 @@ flowchart LR
 
 ## Domain
 
-`Job` carries the exact request, manufacturer/model, requested quantity, currency, absolute deadline, fulfillment, timezone, named targets and inquiry policy. No phone numbers, language, currency or location are inferred. `Question` is a typed field and a bounded prompt. All eight core fields must exist and be required.
+`Job` carries the exact request, manufacturer/model, requested quantity, currency, absolute deadline, fulfillment, timezone, named targets, opaque contact references and inquiry policy. Phone numbers are resolved ephemerally by the live adapter and cannot pass the artifact schema. No phone numbers, language, currency or location are inferred. `Question` is a typed field and a bounded prompt. All eight core fields must exist and be required.
 
 `Call` identifies one target and one round. `runId` preserves the opaque provider ID; all accepted claims link to the local call which holds that ID. Each `Evidence` entry has its field, typed value, exact quote, character span, observation timestamp, source type, and explicit supersession links. The result schema is application-owned; it is not falsely advertised as an MCP parameter.
 
@@ -33,7 +33,7 @@ flowchart LR
 
 CALL-E's CLI executes plan_call then run_call with its exact private confirmation values. PARTLINE never passes confirmation values in process arguments or logs. The CLI owns the OAuth cache and any private call-recovery records outside the workspace. No vendor tool or returned command is directly invoked from data.
 
-The live runner invokes Node with an absolute `calle.js` path using argument arrays and `shell:false`. It only permits status/start calls after explicit enablement; Mission 001's CLI never enables them. It filters inherited environment variables so endpoint/token overrides and Node injection do not pass through. Its stderr and native exception details are suppressed.
+The live runner invokes Node with an absolute `calle.js` path using argument arrays and `shell:false`. It only permits status/start calls after explicit enablement. Mission 002 enables it only in the fixed `live-test` command after the approval marker, one-target policy and destination fingerprint all validate. It filters inherited environment variables so endpoint/token overrides and Node injection do not pass through. Its stderr and native exception details are suppressed.
 
 ## Reliability
 
@@ -65,7 +65,7 @@ Hard constraints check availability, exact model, quantity, absolute deadline an
 
 ## Human boundaries
 
-Inquiry approval and purchasing choice are separate. The call grant binds an immutable job fingerprint, mode, expiry and budget. Before dialing in a later mission, a trusted UI must issue it only after the actual user approves those destinations and questions. A JSON flag from an untrusted client must never serve as authority. The current local API assumes a trusted process and operator; multi-user authentication/authorization is not implemented.
+Inquiry approval and purchasing choice are separate. The call grant binds an immutable job fingerprint, destination fingerprints, mode, expiry and budget. Mission 002's approval marker is set only by the local wrapper used after explicit chat approval. A JSON flag from an untrusted client must never serve as authority. The current local API assumes a trusted process and operator; multi-user authentication/authorization is not implemented.
 
 Human choice is revalidated against current evidence and deadline and sets `executable:false`. There is no purchase/commit executor, payment integration or implicit booking path. Supplier statements and result hints cannot create approval. Any imported evidence clears the prior choice.
 

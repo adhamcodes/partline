@@ -16,7 +16,7 @@ export const Value = z.discriminatedUnion('kind', [
 export type Value = z.infer<typeof Value>;
 export const Question = z.object({ field: Field, prompt: z.string().min(1).max(1000), required: z.boolean() }).strict();
 export type Question = z.infer<typeof Question>;
-export const Target = z.object({ id: Id.max(32), name: z.string().min(1).max(100), phone: z.string().regex(/^\+[1-9]\d{7,14}$/), region: z.string().regex(/^[A-Z]{2}$/), language: z.string().min(1).max(50) }).strict();
+export const Target = z.object({ id: Id.max(32), name: z.string().min(1).max(100), contactRef: z.string().regex(/^[a-z][a-z0-9_-]{0,31}:[a-zA-Z0-9_-]{1,64}$/), region: z.string().regex(/^[A-Z]{2}$/), language: z.string().min(1).max(50) }).strict();
 export type Target = z.infer<typeof Target>;
 export const Job = z.object({
   id: Id.max(32), request: z.string().min(1).max(3000), exactModel: z.string().min(1).max(100), quantity: z.number().int().positive().max(10000),
@@ -24,7 +24,7 @@ export const Job = z.object({
   maxAgeMinutes: z.number().positive().max(1440), targets: z.array(Target).min(1).max(10), questions: z.array(Question).min(1).max(16),
   policy: z.object({ concurrency: z.number().int().min(1).max(3), maxCalls: z.number().int().min(1).max(20), maxFollowupsPerTarget: z.number().int().min(0).max(2), maxStartRetries: z.number().int().min(0).max(2), maxPolls: z.number().int().min(1).max(100), pollIntervalMs: z.number().int().min(0).max(60000) }).strict(),
 }).strict().superRefine((j, ctx) => {
-  if (new Set(j.targets.map(t => t.id)).size !== j.targets.length || new Set(j.targets.map(t => t.phone)).size !== j.targets.length) ctx.addIssue({ code: 'custom', message: 'Duplicate targets' });
+  if (new Set(j.targets.map(t => t.id)).size !== j.targets.length || new Set(j.targets.map(t => t.contactRef)).size !== j.targets.length) ctx.addIssue({ code: 'custom', message: 'Duplicate targets' });
   if (new Set(j.questions.map(q => q.field)).size !== j.questions.length) ctx.addIssue({ code: 'custom', message: 'Duplicate questions' });
   for (const field of Field.options) if (!j.questions.some(q => q.field === field && q.required)) ctx.addIssue({ code: 'custom', message: `Required question absent: ${field}` });
   if (Date.parse(j.deadline) <= Date.parse(j.createdAt)) ctx.addIssue({ code: 'custom', message: 'Deadline must follow creation' });
